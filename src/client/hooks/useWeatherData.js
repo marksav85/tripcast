@@ -120,7 +120,7 @@ const useWeatherData = (city, date, submitted) => {
           setWeatherIcon(weatherIcon);
           setTempIcon(tempIcon);
           setErrorMessage(""); // Clear any previous error messages
-        } catch (error) {
+        } catch {
           setErrorMessage("Error fetching weather data"); // Set error message if fetching fails
         } finally {
           setLoading(false); // Set loading state to false once fetching is complete

@@ -49,3 +49,35 @@ The **Travel Weather App** is a React-based application that allows users to che
 - **OpenWeatherMap**: For weather data API.
 - **Lottie**: For interactive animations.
 - **FontAwesome**: For iconography.
+
+## Batch 1 development baseline
+
+Use **Node.js 24.21.0 LTS** (`nvm install && nvm use`; pinned in `.nvmrc`).
+The supported runtime range is Node 24 from 24.21.0; this batch was verified with
+npm 11.19.0. Install reproducibly with `npm ci` using the committed lockfile.
+
+```sh
+npm ci
+npm run lint
+npm run test:run
+npm run build
+```
+
+`npm test` runs Vitest in watch mode; `npm run check` runs lint, tests and build.
+Tests use jsdom and React Testing Library with mocked context actions. Unexpected
+Axios/fetch requests fail; no weather credentials are required for these checks.
+The initial tests cover stable form behavior and the header, not live weather
+capability or the reliability defects scheduled for later batches.
+
+Lint uses ESLint 10 flat configuration for JavaScript, React Hooks and Fast
+Refresh, plus Oxlint's React and JSX accessibility rules. Both must pass the
+single `npm run lint` command. Current `eslint-plugin-react` and
+`eslint-plugin-jsx-a11y` peer ranges exclude ESLint 10; ESLint 9 is end-of-life.
+No forced peer installation is used.
+
+Tailwind remains on **3.4.19** with the existing stylesheet/configuration.
+Outstanding build-tool advisories and retained Axios risks are tracked in
+[the Batch 1 implementation report](docs/tripcast--phase-1--batch-1--implementation-report.md).
+Revisit Tailwind 4 during the approved Stitch redesign. The existing browser
+OpenWeather integration remains unchanged in this batch; its public-key design
+is still scheduled for the later Worker/security batch.

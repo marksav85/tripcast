@@ -3,9 +3,6 @@ import axios from "axios";
 
 // Custom hook to get the user's current location and fetch the corresponding city name
 const useCurrentLocation = (setCity) => {
-  // State to store the user's coordinates (latitude and longitude)
-  const [coords, setCoords] = useState(null);
-
   // State to track the loading status while fetching data
   const [loading, setLoading] = useState(false);
 
@@ -28,7 +25,7 @@ const useCurrentLocation = (setCity) => {
       // Set the city state in the context using the provided setCity function
       const fetchedCity = response.data[0]?.name || "Unknown location";
       setCity(fetchedCity);
-    } catch (error) {
+    } catch {
       // Set an error message if the API request fails
       setErrorMessage("Error fetching city name");
     } finally {
@@ -44,9 +41,6 @@ const useCurrentLocation = (setCity) => {
         (position) => {
           // Extract latitude and longitude from the position object
           const { latitude, longitude } = position.coords;
-
-          // Store the coordinates in state
-          setCoords({ latitude, longitude });
 
           // Fetch the city name based on the obtained coordinates
           fetchCityFromCoordinates(latitude, longitude);
