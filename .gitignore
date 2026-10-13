@@ -26,3 +26,6 @@ dist-ssr
 public/media/originals
 public/weather-icons-master
 tree.txt
+
+# redesign files
+docs/project-redesign
