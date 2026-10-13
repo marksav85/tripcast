@@ -77,7 +77,27 @@ No forced peer installation is used.
 
 Tailwind remains on **3.4.19** with the existing stylesheet/configuration.
 Outstanding build-tool advisories and retained Axios risks are tracked in
-[the Batch 1 implementation report](docs/tripcast--phase-1--batch-1--implementation-report.md).
+[the Batch 1 implementation report](docs/project-redesign/tripcast--phase-1--batch-1--implementation-report.md).
 Revisit Tailwind 4 during the approved Stitch redesign. The existing browser
 OpenWeather integration remains unchanged in this batch; its public-key design
 is still scheduled for the later Worker/security batch.
+
+
+## Batch 2 lookup behavior
+
+City/date fields remain editable after a lookup. Submit resolves cities, lets you
+choose among matching locations, and reuses selected coordinates for later dates.
+Reset cancels pending work and clears the draft/result. Retry last lookup restores
+and retries the submitted query; edits do not relabel previously loaded weather.
+Today uses your browser's local calendar date.
+
+Weather cards now show high/low Celsius temperatures, cloud-cover snapshots and
+total precipitation (liquid-water equivalent). Missing measurements are unavailable;
+the daily summary does not supply a validated condition code. Loading and location
+errors are announced, controls have accessible names, and reduced motion is respected.
+
+The expanded test suite uses synthetic existing-endpoint fixtures and mocked Axios
+responses. It does not validate One Call 4.0 or require a key. The existing browser
+API key mechanism remains pending the separately authorized Worker security batch.
+See [the Batch 2 report](docs/project-redesign/tripcast--phase-1--batch-2--implementation-report.md)
+for verification and deferred work.

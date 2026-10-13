@@ -3,24 +3,19 @@ import { useRef, useEffect, useContext } from "react";
 import WeatherContext from "../context/WeatherContextProvider";
 import Destination from "./destination/Destination";
 import Weather from "./weather/Weather";
-import travelCamper from "/media/travel_camper.jpg";
+import useReducedMotion from "../hooks/useReducedMotion";
+const travelCamper = "/media/travel_camper.jpg";
 
 // MainView component that displays Destination and Weather components
 export default function MainView() {
-  // Use context to get the submitted state which indicates whether the form has been submitted
-  const { submitted } = useContext(WeatherContext);
-
-  // Create a ref to refer to the Weather component for scrolling into view
+  const { weather } = useContext(WeatherContext);
+  const reducedMotion = useReducedMotion();
   const weatherRef = useRef(null);
-
-  // Effect that runs when the 'submitted' state changes
   useEffect(() => {
-    // Check if the form has been submitted and if the weatherRef is assigned
-    if (submitted && weatherRef.current) {
-      // Smoothly scroll the Weather component into view
-      weatherRef.current.scrollIntoView({ behavior: "smooth" });
+    if (weather.status === 'success') {
+      weatherRef.current?.scrollIntoView?.({ behavior: reducedMotion ? 'auto' : 'smooth' });
     }
-  }, [submitted]); // Dependency array ensures this effect runs only when 'submitted' changes
+  }, [weather.status, weather.result, reducedMotion]);
 
   return (
     <div
