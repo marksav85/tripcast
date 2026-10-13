@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { fetchMock, apiResponse } from './fixtures/api';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import App from '../src/client/App';
@@ -11,7 +11,7 @@ it.each([false, true])('scrolls on successful result with reduced motion=%s', as
   const original = HTMLElement.prototype.scrollIntoView;
   HTMLElement.prototype.scrollIntoView = scroll;
   try {
-    axios.get.mockResolvedValueOnce({ data: [berlin] }).mockResolvedValueOnce({ data: daySummary });
+    fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
     render(<WeatherProvider><App /></WeatherProvider>);
     fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
@@ -33,7 +33,7 @@ it('reacts to a reduced-motion preference change during loading', async () => {
     addEventListener: (type, callback) => listeners.add(callback),
     removeEventListener: (type, callback) => remove(callback),
   }));
-  const pending = deferred(); axios.get.mockReturnValueOnce(pending.promise);
+  const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
   const app = render(<WeatherProvider><App /></WeatherProvider>);
   fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
   fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
@@ -43,5 +43,5 @@ it('reacts to a reduced-motion preference change during loading', async () => {
   expect(screen.queryByTestId('loading-animation')).not.toBeInTheDocument();
   app.unmount();
   expect(remove).toHaveBeenCalledTimes(2);
-  await act(async () => pending.resolve({ data: [berlin] }));
+  await act(async () => pending.resolve(apiResponse([berlin])));
 });

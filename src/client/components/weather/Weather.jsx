@@ -55,6 +55,8 @@ export default function Weather() {
             </div>
             <p className="text-sm text-gray-700">Weather conditions: unavailable from this daily summary.</p>
             <p className="text-sm text-gray-700">{result.source}. Missing measurements are unavailable.</p>
+            {result.freshness?.mock && <p className="text-sm text-gray-700">Local demonstration data — not a live forecast.</p>}
+            {result.freshness?.stale && <p role="alert" className="text-sm text-gray-700">Showing older cached weather while the service is unavailable.</p>}
           </div>
         )}
       </div>

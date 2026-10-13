@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { fetchMock, apiResponse } from './fixtures/api';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import Destination from '../src/client/components/destination/Destination';
@@ -21,7 +21,7 @@ function setup() {
 
 describe('geolocation lifecycle', () => {
   it('retains GPS coordinates and does not forward-geocode the city again', async () => {
-    axios.get.mockResolvedValueOnce({ data: [berlin] }).mockResolvedValueOnce({ data: daySummary });
+    fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
     const geo = setup();
     expect(screen.getByText('Getting your location…')).toBeVisible();
     expect(geo.getCurrentPosition.mock.calls[0][2]).toMatchObject({ timeout: 10000, enableHighAccuracy: false });
@@ -30,8 +30,8 @@ describe('geolocation lifecycle', () => {
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await screen.findByText('Weather loaded.');
-    expect(axios.get).toHaveBeenCalledTimes(2);
-    expect(axios.get.mock.calls[1][1].params).toMatchObject({ lat: 52.521, lon: 13.406 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ lat: 52.521, lon: 13.406 });
   });
 
   it.each([[1, /permission denied/], [2, /Your location is unavailable/], [3, /timed out/]])('handles browser error %i and allows retry', (code, message) => {
@@ -58,7 +58,7 @@ describe('geolocation lifecycle', () => {
     if (action === 'submit') fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     if (action === 'unmount') geo.unmount();
     await geo.succeed();
-    expect(axios.get).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
     if (action !== 'unmount') expect(screen.getByLabelText('City:')).toHaveValue(action === 'city' ? 'Paris' : '');
   });
 
@@ -68,27 +68,27 @@ describe('geolocation lifecycle', () => {
   });
 
   it('aborts reverse geocoding and ignores its response after reset', async () => {
-    const pending = deferred(); axios.get.mockReturnValueOnce(pending.promise);
+    const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
     const geo = setup();
     // Do not await callback's pending reverse lookup.
     void geo.succeed();
-    await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(1));
-    const signal = axios.get.mock.calls[0][1].signal;
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const signal = fetchMock.mock.calls[0][1].signal;
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-    await act(async () => pending.resolve({ data: [berlin] }));
+    await act(async () => pending.resolve(apiResponse([berlin])));
     expect(signal.aborted).toBe(true);
     expect(screen.getByLabelText('City:')).toHaveValue('');
   });
 
   it.each([['empty', []], ['malformed', {}]])('handles %s reverse results', async (kind, data) => {
-    axios.get.mockResolvedValueOnce({ data });
+    fetchMock.mockResolvedValueOnce(apiResponse(data));
     const geo = setup(); await geo.succeed();
     expect(screen.getByText(kind === 'empty' ? /No city found/ : /invalid response/)).toBeVisible();
     expect(screen.getByLabelText('City:')).toHaveValue('');
   });
 
   it('handles reverse lookup network errors without leaking URLs', async () => {
-    axios.get.mockRejectedValueOnce({ isAxiosError: true, message: 'https://provider?appid=sensitive' });
+    fetchMock.mockRejectedValueOnce(new Error('https://provider?appid=sensitive'));
     const geo = setup(); await geo.succeed();
     expect(screen.getByText(/Location lookup failed/)).toBeVisible();
     expect(screen.queryByText(/sensitive/)).not.toBeInTheDocument();

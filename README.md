@@ -1,103 +1,138 @@
-# Travel Weather App
+# TripCast
 
-## Overview
+A React/Vite/Tailwind single-city weather lookup with editable dates, city
+selection, browser geolocation, safe reset/retry behavior and normalized daily
+measurements. Cloudflare Workers Static Assets serves the production build;
+a same-origin Worker owns provider access. Supabase/trips and the Stitch redesign
+are later phases.
 
-The **Travel Weather App** is a React-based application that allows users to check the weather for a specific city on a chosen date. It provides weather information, including temperature, cloud cover, and rainfall, and displays relevant weather and temperature icons. Users can also use their current location to fetch weather data automatically.
+## Runtime and installation
 
-## Features
-
-- **Weather Information**: Fetches and displays weather details including temperature, cloud cover, and rainfall for a specified city and date.
-- **Location-Based Weather**: Allows users to use their current location to automatically set the city for weather queries.
-- **Dynamic Icons**: Displays weather and temperature icons based on the current conditions and temperature.
-- **Date Selection**: Users can choose a specific travel date or use today's date as a default.
-
-## Technologies Used
-
-- **React**: Frontend framework for building user interfaces.
-- **Axios**: HTTP client for making API requests to fetch weather data.
-- **Node.js**: Runtime environment for executing server-side code.
-- **Vite**: Build tool and development server.
-- **Tailwind CSS**: Utility-first CSS framework for styling.
-- **Vercel**: Deployment platform for hosting the React app.
-- **Lottie**: Animation library for interactive animations.
-- **FontAwesome**: Icon library used for interactive buttons.
-
-## Installation
-
-1. **Clone the repository**:
-   - git clone https://github.com/marksav85/Travel-App-React.git
-   - cd travel-app-react
-2. **Install dependencies:**:
-   - npm install
-3. **Set up environment variables:**:
-
-   - Visit [OpenWeatherMap](https://openweathermap.org/api) and obtain an API key for _One Call API 3.0_
-   - Create a .env file in the root directory and add the following environment variables:
-   - VITE_API_KEY=(Add your One Call API Key here)
-
-4. **Start the development server:**:
-   - npm run dev
-
-## Usage
-
-- **Enter a City and Date**: Use the form to input a city and travel date, then click "Submit" to fetch weather data.
-- **Use Current Location**: Click the location icon to automatically set the city based on your current location.
-- **Reset**: Use the "Reset" button to clear the form and reset the application state.
-
-## Acknowledgements
-
-- **OpenWeatherMap**: For weather data API.
-- **Lottie**: For interactive animations.
-- **FontAwesome**: For iconography.
-
-## Batch 1 development baseline
-
-Use **Node.js 24.21.0 LTS** (`nvm install && nvm use`; pinned in `.nvmrc`).
-The supported runtime range is Node 24 from 24.21.0; this batch was verified with
-npm 11.19.0. Install reproducibly with `npm ci` using the committed lockfile.
+Use **Node 24.21.0 LTS**, pinned in `.nvmrc` (supported range `>=24.21.0 <25`).
+Verification uses npm 11.19.0.
 
 ```sh
+nvm install
+nvm use
 npm ci
+```
+
+## Local development — no credentials
+
+First build the static assets, then run the local Worker:
+
+```sh
+npm run build
+npm run dev:worker
+```
+
+Open `http://127.0.0.1:8787` to use the built app with synthetic provider data.
+`npm run preview:worker` combines build and local Worker startup. Local fixtures
+include Berlin, ambiguous London matches and an empty result for “Missing City”.
+Results explicitly identify demonstration data. They are not live forecasts or
+validated One Call 4.0 responses.
+
+For frontend hot reload, keep the Worker running and use a second terminal:
+
+```sh
+npm run dev
+```
+
+Open `http://localhost:5173`; Vite proxies `/api` to port 8787. Only known local
+browser origins are translated by the development proxy. Both servers must run.
+`npm start` is Vite-only static preview and does not supply the API; use the Worker
+preview for integration/security checks. Keep development servers local.
+
+## API boundary
+
+- `GET /api/geocode?q=...`: trimmed 2–100-character city; up to five candidates.
+- `GET /api/reverse-geocode?lat=...&lon=...`: finite bounded coordinates.
+- `POST /api/weather`: JSON `{ "lat": 52.52, "lon": 13.405, "date": "2026-10-13" }`.
+  One location/date only; 16 KiB streamed body cap, strict calendar validation and
+  provisional existing-adapter bounds of 1979-01-02 through UTC today +540 days.
+
+Unknown fields, credentials, arbitrary endpoints/URLs, invalid methods, oversized
+bodies and foreign browser origins are rejected. API responses are JSON/no-store
+with stable error codes. The server chooses fixed HTTPS provider paths/metric
+units and normalizes responses before they reach React. Browser requests use
+native fetch, never OpenWeather URLs or API keys. There is no Axios dependency.
+
+High/low Celsius, snapshot cloud cover and total liquid-water-equivalent
+precipitation preserve zero vs missing values. Conditions unavailable from the
+existing daily summary are not guessed. Calendar dates remain `YYYY-MM-DD` values.
+Retry last lookup restores the submitted query; Reset cancels/invalidates pending
+work. Keyboard city choice and reduced-motion behavior are preserved.
+
+## Secrets and environment isolation
+
+Local fixture mode requires **no `.env` or `.dev.vars` file**. Safe examples are
+provided; `.env*`, `.dev.vars*` and `.wrangler/` are ignored except example files.
+Do not put weather credentials in browser settings or source. No browser
+configuration is currently required.
+
+Future live integration uses only `OPENWEATHER_API_KEY` in a Worker secret binding.
+Local live validation, once separately approved, uses a gitignored `.dev.vars`
+file and fixture mode disabled. Wrangler has explicit local/staging/production
+configuration; deployed/default settings disable fixtures. Fixtures also require
+a loopback request hostname, so deployed local configuration fails closed.
+A missing secret returns `SERVICE_UNCONFIGURED`, never fake success. No real key,
+Cloudflare account/domain, deployment token or external subscription is needed
+for this batch. Staging/production secrets must be separately configured only
+after authorization. No deployment script or deployment is included.
+
+## Verification
+
+```sh
 npm run lint
 npm run test:run
 npm run build
+npm run check
+npm audit --package-lock-only --ignore-scripts
 ```
 
-`npm test` runs Vitest in watch mode; `npm run check` runs lint, tests and build.
-Tests use jsdom and React Testing Library with mocked context actions. Unexpected
-Axios/fetch requests fail; no weather credentials are required for these checks.
-The initial tests cover stable form behavior and the header, not live weather
-capability or the reliability defects scheduled for later batches.
+`npm test` watches client tests. `test:client` includes mocked React-to-Worker
+integration; `test:worker` runs deterministic Worker Fetch/Streams/cache tests in
+Node with injected provider/cache/clock dependencies. `test:run` and `check` run
+both suites. Local Wrangler/workerd and headless Chrome smoke checks complement
+the Node/jsdom tests; no live-provider contract is claimed.
 
-Lint uses ESLint 10 flat configuration for JavaScript, React Hooks and Fast
-Refresh, plus Oxlint's React and JSX accessibility rules. Both must pass the
-single `npm run lint` command. Current `eslint-plugin-react` and
-`eslint-plugin-jsx-a11y` peer ranges exclude ESLint 10; ESLint 9 is end-of-life.
-No forced peer installation is used.
+Lint combines supported ESLint 10 core/Hooks/Fast Refresh with Oxlint React and
+accessibility checks. Tailwind stays on 3.4.19; its remaining build-tool advisories
+are documented for review during Stitch redesign. Do not force upgrades to silence
+audit output.
 
-Tailwind remains on **3.4.19** with the existing stylesheet/configuration.
-Outstanding build-tool advisories and retained Axios risks are tracked in
-[the Batch 1 implementation report](docs/project-redesign/tripcast--phase-1--batch-1--implementation-report.md).
-Revisit Tailwind 4 during the approved Stitch redesign. The existing browser
-OpenWeather integration remains unchanged in this batch; its public-key design
-is still scheduled for the later Worker/security batch.
+## Cache, limits and CSP
 
+The Worker uses the Cache API for normalized public data: seven-day geocoding,
+15-minute empty/unavailable results, three-hour near-term weather / 24-hour later
+weather freshness, with weather stale fallback within 24/72 hours respectively.
+Stale and fixture results are labeled. Without destination timezone validation,
+the UTC +8-day cache boundary is conservative; it does not label forecast confidence.
 
-## Batch 2 lookup behavior
+Ten city/reverse lookups or five weather requests per IP/route/minute, at most
+three concurrent upstream tasks, one retry for transient network/5xx failures and
+bounded in-flight/map sizes are **isolate-local** controls. Cache entries are
+location-local, can be evicted, and local workerd cache behavior is not worldwide
+storage. Memory counters reset/repartition and minute buckets allow edge bursts.
+These controls do **not** enforce a global billable account budget. Provider caps,
+abuse monitoring and any cross-region coordination must be approved before public
+live use. CORS/Origin restrictions are not authentication.
 
-City/date fields remain editable after a lookup. Submit resolves cities, lets you
-choose among matching locations, and reuses selected coordinates for later dates.
-Reset cancels pending work and clears the draft/result. Retry last lookup restores
-and retries the submitted query; edits do not relabel previously loaded weather.
-Today uses your browser's local calendar date.
+Static `_headers` and API security headers enforce same-origin script/connect
+sources, no eval, no frames/objects and local geolocation. Lottie uses the light
+expression-free build; FontAwesome uses compiled external CSS. Inline **style
+attributes only** remain allowed for Lottie's transforms; script/style elements
+are not opened to unsafe inline/eval. Static assets revalidate with no-cache.
+HSTS/domain preload is deferred until an actual HTTPS deployment is reviewed.
 
-Weather cards now show high/low Celsius temperatures, cloud-cover snapshots and
-total precipitation (liquid-water equivalent). Missing measurements are unavailable;
-the daily summary does not supply a validated condition code. Loading and location
-errors are announced, controls have accessible names, and reduced motion is respected.
+## Reports
 
-The expanded test suite uses synthetic existing-endpoint fixtures and mocked Axios
-responses. It does not validate One Call 4.0 or require a key. The existing browser
-API key mechanism remains pending the separately authorized Worker security batch.
-See [the Batch 2 report](docs/project-redesign/tripcast--phase-1--batch-2--implementation-report.md)
-for verification and deferred work.
+- [Preparation audit](docs/project-redesign/tripcast--phase-1--preparation-and-code-audit.md)
+- [Batch 1](docs/project-redesign/tripcast--phase-1--batch-1--implementation-report.md)
+- [Batch 2](docs/project-redesign/tripcast--phase-1--batch-2--implementation-report.md)
+- [Batch 3](docs/project-redesign/tripcast--phase-1--batch-3--implementation-report.md)
+
+OpenWeather is the intended data provider. The existing 3.0 adapter is preserved
+for compatibility; 4.0 entitlement, timezone/precipitation semantics, attribution,
+pricing and sustainable quotas require separately authorized validation before
+live readiness. No subscription changes are implied by this code.

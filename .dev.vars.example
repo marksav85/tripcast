@@ -1,0 +1,3 @@
+# Local fixture mode needs no secrets. Leave this empty until live validation
+# is separately authorized. Only the Worker may read this server-side name.
+OPENWEATHER_API_KEY=

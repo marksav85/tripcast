@@ -1,42 +1,63 @@
-import axios from 'axios';
 import { normalizeCandidates, validCoordinates } from '../lib/locations';
-import { normalizeDaySummary } from '../lib/weatherModel';
 
-// Temporary existing browser integration. No key values/logs are introduced.
-// Replace this adapter with the same-origin Worker client in the security batch.
-function request(path, params, signal) {
-  return axios.get(`https://api.openweathermap.org/${path}`, {
-    params: { ...params, appid: import.meta.env.VITE_API_KEY },
-    signal, timeout: 8000,
-  });
+const messages = {
+  RATE_LIMITED: 'Too many requests. Please wait before retrying.',
+  UPSTREAM_LIMIT: 'The weather service is busy. Please wait before retrying.',
+  SERVICE_BUSY: 'The weather service is busy. Please retry shortly.',
+  SERVICE_UNCONFIGURED: 'Weather service access is unavailable. Please try again later.',
+  UPSTREAM_ACCESS: 'Weather service access is unavailable. Please try again later.',
+  DATE_UNAVAILABLE: 'This date is outside the supported weather range.',
+};
+class ClientError extends Error {
+  constructor(code) { super(code); this.code = code; }
 }
-
+async function request(url, options, signal) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 20000);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal, credentials: 'same-origin', redirect: 'error' });
+    const envelope = await response.json();
+    if (!response.ok) throw new ClientError(envelope?.error?.code ?? 'API_FAILURE');
+    if (!envelope || !Object.hasOwn(envelope, 'data')) throw new ClientError('UPSTREAM_INVALID');
+    return envelope;
+  } catch (error) {
+    if (timedOut) throw new ClientError('UPSTREAM_TIMEOUT');
+    if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    throw error instanceof ClientError ? error : new ClientError('API_FAILURE');
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+}
 export async function lookupCities(city, signal) {
-  const response = await request('geo/1.0/direct', { q: city, limit: 5 }, signal);
-  return normalizeCandidates(response.data);
+  const { data } = await request(`/api/geocode?${new URLSearchParams({ q: city })}`, { method: 'GET' }, signal);
+  try { return normalizeCandidates(data); } catch { throw new ClientError('CITY_INVALID'); }
 }
-
 export async function reverseLookup(lat, lon, signal) {
-  if (!validCoordinates(lat, lon)) throw new Error('Your location coordinates are invalid.');
-  const response = await request('geo/1.0/reverse', { lat, lon, limit: 1 }, signal);
-  const locations = normalizeCandidates(response.data);
-  return locations[0] ? { ...locations[0], lat, lon } : null;
+  if (!validCoordinates(lat, lon)) throw new ClientError('INVALID_INPUT');
+  const { data } = await request(`/api/reverse-geocode?${new URLSearchParams({ lat, lon })}`, { method: 'GET' }, signal);
+  try {
+    const candidates = normalizeCandidates(data);
+    return candidates[0] ? { ...candidates[0], lat, lon } : null;
+  } catch { throw new ClientError('CITY_INVALID'); }
 }
-
 export async function lookupWeather(query, signal) {
   const { lat, lon } = query.location;
-  const response = await request('data/3.0/onecall/day_summary', {
-    lat, lon, date: query.date, units: 'metric',
+  const { data, meta } = await request('/api/weather', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lon, date: query.date }),
   }, signal);
-  return normalizeDaySummary(response.data, query);
+  const model = data?.model;
+  if (!model || model.date !== query.date || typeof data.available !== 'boolean'
+    || !['lowC', 'highC', 'cloudPercent', 'precipitationMm'].every((key) => model[key] === null || (typeof model[key] === 'number' && Number.isFinite(model[key])))) {
+    throw new ClientError('UPSTREAM_INVALID');
+  }
+  return { model: { ...model, location: { ...query.location }, freshness: meta }, available: data.available };
 }
-
 export function requestError(error, service) {
-  if (error?.response?.status === 429) return 'The weather service is busy. Please wait before retrying.';
-  if ([401, 403].includes(error?.response?.status)) return 'Weather service access is unavailable. Please try again later.';
-  if (error?.code === 'ECONNABORTED') return `${service} timed out. Please retry.`;
-  // Never render Axios messages, which can contain key-bearing URLs.
-  if (error?.name === 'Error' && !error?.isAxiosError && !error?.response && !error?.code
-    && /^(The city service|The weather service|Your location coordinates)/.test(error.message)) return error.message;
+  if (messages[error?.code]) return messages[error.code];
+  if (error?.code === 'UPSTREAM_TIMEOUT') return `${service} timed out. Please retry.`;
+  if (error?.code === 'CITY_INVALID') return 'The city service returned an invalid response. Please retry.';
+  if (error?.code === 'UPSTREAM_INVALID') return 'The weather service returned an invalid date or response. Please retry.';
   return `${service} failed. Check your connection and retry.`;
 }

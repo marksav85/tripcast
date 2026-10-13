@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { fetchMock, apiResponse, apiError } from './fixtures/api';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -16,13 +16,13 @@ function fill(city = 'Berlin', date = '2026-10-13') {
 }
 function submit() { fireEvent.click(screen.getByRole('button', { name: 'Submit' })); }
 async function success() { await screen.findByText('Weather loaded.'); }
-const response = (data) => ({ data });
+const response = apiResponse;
 
-// Axios mocks intentionally ignore AbortSignal in race tests; generation guards
+// Fetch mocks intentionally ignore AbortSignal in race tests; generation guards
 // must still suppress a completion after abort or after a newer request.
 describe('single-city lookup regression', () => {
   it('loads normalized weather and keeps the submitted city distinct from edits', async () => {
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
     app(); fill(); submit(); await success();
     expect(screen.getByRole('heading', { name: 'Berlin, DE' })).toBeVisible();
     expect(screen.getByText('15°C')).toBeVisible();
@@ -31,30 +31,30 @@ describe('single-city lookup regression', () => {
     expect(screen.queryByText(/average|Extreme Rain|Sunny/)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Paris' } });
     expect(screen.getByRole('heading', { name: 'Berlin, DE' })).toBeVisible();
-    expect(axios.get).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('retains selected coordinates for identical resubmission and a changed date', async () => {
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValue(response(daySummary));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockImplementation(() => Promise.resolve(response(daySummary)));
     app(); fill(); submit(); await success(); submit(); await success();
-    expect(axios.get).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: '2026-10-14' } });
-    axios.get.mockResolvedValueOnce(response({ ...daySummary, date: '2026-10-14' }));
+    fetchMock.mockResolvedValueOnce(response({ ...daySummary, date: '2026-10-14' }));
     submit(); await success();
-    expect(axios.get.mock.calls[3][1].params).toMatchObject({ lat: berlin.lat, lon: berlin.lon, date: '2026-10-14', units: 'metric' });
+    expect(JSON.parse(fetchMock.mock.calls[3][1].body)).toEqual({ lat: berlin.lat, lon: berlin.lon, date: '2026-10-14' });
   });
 
   it('reports empty results and permits correcting/resubmitting the city', async () => {
-    axios.get.mockResolvedValueOnce(response([]));
+    fetchMock.mockResolvedValueOnce(response([]));
     app(); fill('Atlantis'); submit();
     await screen.findByText(/No matching city/);
-    expect(axios.get).toHaveBeenCalledTimes(1);
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
     fill(); submit(); await success();
   });
 
   it.each([{}, [null], [{ name: 'Berlin', country: 'DE', lat: '52', lon: 13 }]])('handles malformed geocoding: %j', async (data) => {
-    axios.get.mockResolvedValueOnce(response(data));
+    fetchMock.mockResolvedValueOnce(response(data));
     app(); fill(); submit();
     expect(await screen.findByRole('alert')).toHaveTextContent(/city service/);
     expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
@@ -62,55 +62,55 @@ describe('single-city lookup regression', () => {
 
   it('supports ambiguity through focused keyboard-accessible candidate buttons', async () => {
     const user = userEvent.setup();
-    axios.get.mockResolvedValueOnce(response([londonUK, londonCA])).mockResolvedValueOnce(response(daySummary));
+    fetchMock.mockResolvedValueOnce(response([londonUK, londonCA])).mockResolvedValueOnce(response(daySummary));
     app(); fill('London'); submit();
     const candidate = await screen.findByRole('button', { name: 'London, England, GB' });
     await waitFor(() => expect(candidate).toHaveFocus());
-    expect(axios.get).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     await user.tab();
     expect(screen.getByRole('button', { name: 'London, Ontario, CA' })).toHaveFocus();
     await user.keyboard('{Enter}'); await success();
-    expect(axios.get.mock.calls[1][1].params).toMatchObject({ lat: londonCA.lat, lon: londonCA.lon });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ lat: londonCA.lat, lon: londonCA.lon });
     expect(screen.getByRole('heading', { name: 'London, Ontario, CA' })).toBeVisible();
   });
 
   it('retries a failed weather query without geocoding again, restoring its draft', async () => {
-    axios.get.mockResolvedValueOnce(response([berlin])).mockRejectedValueOnce(new Error('Network error'));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockRejectedValueOnce(new Error('Network error'));
     app(); fill(); submit();
     expect(await screen.findByRole('alert')).toHaveTextContent(/Weather lookup failed/);
     fill('Paris', '2026-10-14');
-    axios.get.mockResolvedValueOnce(response(daySummary));
+    fetchMock.mockResolvedValueOnce(response(daySummary));
     fireEvent.click(screen.getByRole('button', { name: 'Retry last lookup' })); await success();
     expect(screen.getByLabelText('City:')).toHaveValue('Berlin');
     expect(screen.getByLabelText('Date of travel:')).toHaveValue('2026-10-13');
-    expect(axios.get).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('retries failed geocoding with the identical query', async () => {
-    axios.get.mockRejectedValueOnce(new Error('Offline'));
+    fetchMock.mockRejectedValueOnce(new Error('Offline'));
     app(); fill(); submit(); await screen.findByRole('alert');
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
     fireEvent.click(screen.getByRole('button', { name: 'Retry last lookup' })); await success();
-    expect(axios.get.mock.calls[1][1].params.q).toBe('Berlin');
+    expect(new URL(fetchMock.mock.calls[1][0], 'http://localhost').searchParams.get('q')).toBe('Berlin');
   });
 
   it.each([
-    [{ response: { status: 429 } }, /busy/],
-    [{ response: { status: 401 } }, /access is unavailable/],
-    [{ code: 'ECONNABORTED' }, /timed out/],
+    [apiError('UPSTREAM_LIMIT', 503), /busy/],
+    [apiError('UPSTREAM_ACCESS', 503), /access is unavailable/],
+    [apiError('UPSTREAM_TIMEOUT', 504), /timed out/],
   ])('maps service failures safely: %j', async (error, message) => {
-    axios.get.mockRejectedValueOnce(error);
+    fetchMock.mockResolvedValueOnce(error);
     app(); fill(); submit(); expect(await screen.findByRole('alert')).toHaveTextContent(message);
-    expect(axios.get).toHaveBeenCalledTimes(1); // No automatic quota-consuming retries.
+    expect(fetchMock).toHaveBeenCalledTimes(1); // No automatic quota-consuming retries.
   });
 
   it.each(['geocode', 'weather'])('reset invalidates an in-flight %s completion', async (stage) => {
     const pending = deferred();
-    if (stage === 'weather') axios.get.mockResolvedValueOnce(response([berlin]));
-    axios.get.mockReturnValueOnce(pending.promise);
+    if (stage === 'weather') fetchMock.mockResolvedValueOnce(response([berlin]));
+    fetchMock.mockReturnValueOnce(pending.promise);
     app(); fill(); submit();
-    await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(stage === 'weather' ? 2 : 1));
-    const signal = axios.get.mock.calls.at(-1)[1].signal;
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(stage === 'weather' ? 2 : 1));
+    const signal = fetchMock.mock.calls.at(-1)[1].signal;
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve(response(stage === 'weather' ? daySummary : [berlin])));
@@ -123,24 +123,24 @@ describe('single-city lookup regression', () => {
 
   it.each(['resolve', 'reject'])('keeps a newer success when obsolete geocoding later %s', async (completion) => {
     const pending = deferred();
-    axios.get.mockReturnValueOnce(pending.promise);
+    fetchMock.mockReturnValueOnce(pending.promise);
     app(); fill('Old City'); submit();
     fill('Berlin');
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
     submit(); await success();
     await act(async () => pending[completion](completion === 'resolve' ? response([londonUK]) : new Error('late error')));
     expect(screen.getByRole('heading', { name: 'Berlin, DE' })).toBeVisible();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(axios.get).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('suppresses an older weather result while a replacement is still loading', async () => {
     const oldWeather = deferred(); const newWeather = deferred();
-    axios.get.mockResolvedValueOnce(response([berlin])).mockReturnValueOnce(oldWeather.promise);
-    app(); fill(); submit(); await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockReturnValueOnce(oldWeather.promise);
+    app(); fill(); submit(); await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     fill('London');
-    axios.get.mockResolvedValueOnce(response([londonUK])).mockReturnValueOnce(newWeather.promise);
-    submit(); await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(4));
+    fetchMock.mockResolvedValueOnce(response([londonUK])).mockReturnValueOnce(newWeather.promise);
+    submit(); await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
     await act(async () => oldWeather.resolve(response(daySummary)));
     expect(screen.getByRole('region', { name: 'Weather result' })).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText('Weather loaded.')).not.toBeInTheDocument();
@@ -149,25 +149,25 @@ describe('single-city lookup regression', () => {
   });
 
   it('cancels on unmount without advancing to a weather request', async () => {
-    const pending = deferred(); axios.get.mockReturnValueOnce(pending.promise);
-    const rendered = app(); fill(); submit(); const signal = axios.get.mock.calls[0][1].signal;
+    const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
+    const rendered = app(); fill(); submit(); const signal = fetchMock.mock.calls[0][1].signal;
     rendered.unmount(); expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve(response([berlin])));
-    expect(axios.get).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('shows unavailable or partial weather without inventing missing values', async () => {
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response({ date: daySummary.date }));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response({ date: daySummary.date }));
     app(); fill(); submit(); await screen.findByText('Weather is unavailable for this location and date.');
     expect(screen.getAllByText('Unavailable')).toHaveLength(4);
-    axios.get.mockResolvedValueOnce(response({ date: daySummary.date, precipitation: { total: 0 } }));
+    fetchMock.mockResolvedValueOnce(response({ date: daySummary.date, precipitation: { total: 0 } }));
     fireEvent.click(screen.getByRole('button', { name: 'Retry last lookup' })); await success();
     expect(screen.getByText('0 mm')).toBeVisible();
     expect(screen.getAllByText('Unavailable')).toHaveLength(3);
   });
 
   it('rejects mismatched dates/malformed weather without crashing', async () => {
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response({ ...daySummary, date: '2026-10-14' }));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response({ ...daySummary, date: '2026-10-14' }));
     app(); fill(); submit(); expect(await screen.findByRole('alert')).toHaveTextContent(/invalid date or response/);
   });
 
@@ -176,7 +176,7 @@ describe('single-city lookup regression', () => {
     expect(screen.getByLabelText('City:')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText('City:')).toHaveFocus();
     expect(screen.getByLabelText('Date of travel:')).toHaveAttribute('aria-invalid', 'true');
-    expect(axios.get).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('provides named buttons, controlled Today and Reset', () => {
@@ -193,18 +193,19 @@ describe('single-city lookup regression', () => {
   });
 
   it('keeps city parameters separate from reserved URL characters', async () => {
-    axios.get.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
     app(); fill('  München & units=imperial?  '); submit(); await success();
-    const [url, options] = axios.get.mock.calls[0];
-    expect(url).toBe('https://api.openweathermap.org/geo/1.0/direct');
-    expect(options.params.q).toBe('München & units=imperial?');
-    expect(options.params).not.toHaveProperty('units');
-    expect(options.timeout).toBe(8000);
+    const [url, options] = fetchMock.mock.calls[0];
+    const parsed = new URL(url, 'http://localhost');
+    expect(parsed.pathname).toBe('/api/geocode');
+    expect(parsed.searchParams.get('q')).toBe('München & units=imperial?');
+    expect(parsed.searchParams.has('units')).toBe(false);
+    expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('respects reduced motion while loading', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
-    const pending = deferred(); axios.get.mockReturnValueOnce(pending.promise);
+    const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
     app(); fill(); submit();
     const result = screen.getByRole('region', { name: 'Weather result' });
     expect(within(result).getByText('Finding cities…')).toBeVisible();

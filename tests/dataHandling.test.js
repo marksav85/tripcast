@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isCalendarDate, todayDate, formatCalendarDate } from '../src/client/lib/calendar';
 import { normalizeCandidates, validCoordinates, validateLookup } from '../src/client/lib/locations';
-import { normalizeDaySummary } from '../src/client/lib/weatherModel';
+import { normalizeDaySummary } from '../src/worker/normalize';
 import { berlin, daySummary } from './fixtures/weather';
 
 const query = { date: daySummary.date, location: { ...berlin } };

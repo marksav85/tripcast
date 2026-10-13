@@ -1,5 +1,5 @@
-import { isCalendarDate } from './calendar';
-import { validCoordinates } from './locations';
+import { isCalendarDate } from '../shared/calendar.js';
+import { validCoordinates } from '../shared/locations.js';
 
 const numberIn = (value, min, max) => typeof value === 'number'
   && Number.isFinite(value) && value >= min && value <= max ? value : null;

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import axios from 'axios';
+import { fetchMock } from './fixtures/api';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
 
@@ -8,11 +8,10 @@ function unexpectedRequest() {
 }
 
 // Guard both transports used by this app and potential future tests.
-vi.mock('axios', () => ({ default: { get: vi.fn(unexpectedRequest) } }));
 beforeEach(() => {
-  axios.get.mockReset();
-  axios.get.mockImplementation(unexpectedRequest);
-  vi.stubGlobal('fetch', vi.fn(unexpectedRequest));
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(unexpectedRequest);
+  vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
   cleanup();
