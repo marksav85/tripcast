@@ -11,6 +11,6 @@ if (configuration.config) {
     });
   } catch { error = 'Authentication is unavailable. Please try again later.'; }
 }
-// Module singleton; SDK owns persistence and refresh. Callback flows belong to P2-3B.
+// Module singleton; SDK owns persistence and refresh. Explicit callbacks are handled by AuthProvider.
 export const supabase = client;
 export const authConfigurationError = error;
