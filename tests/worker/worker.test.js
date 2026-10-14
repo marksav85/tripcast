@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWorker } from '../../src/worker/index';
-import { memoryCache, env, mockEnv, request, weather, rawResponse, city, daily } from './helpers';
+import { memoryCache, env, mockEnv, request, weather, rawResponse, city, daily, missingDaily } from './helpers';
 
 afterEach(() => vi.useRealTimers());
 const errorCode = async (response) => (await response.json()).error.code;
@@ -76,13 +76,13 @@ describe('Provider safety and normalization', () => {
   it('normalizes weather server-side and uses fixed metric parameters', async () => {
     const { handler, upstreamFetch } = worker({ upstreamFetch: vi.fn(async () => rawResponse(daily)) });
     const result = await (await handler.fetch(weather(), env)).json();
-    expect(result.data).toMatchObject({ available: true, model: { lowC: 0, highC: 15, precipitationMm: 0, cloudPercent: null, condition: null } });
+    expect(result.data).toMatchObject({ available: true, model: { lowC: 0, highC: 15, precipitationMm: null, cloudPercent: null, condition: null } });
     expect(result.data.model).not.toHaveProperty('location');
     const url = new URL(upstreamFetch.mock.calls[0][0]);
-    expect(url.pathname).toBe('/data/3.0/onecall/day_summary'); expect(url.searchParams.get('units')).toBe('metric');
+    expect(url.pathname).toBe('/data/4.0/onecall/timeline/1day'); expect(url.searchParams.get('units')).toBe('metric');
   });
   it('marks valid all-missing days unavailable', async () => {
-    const { handler } = worker({ upstreamFetch: vi.fn(async () => rawResponse({ date: daily.date })) });
+    const { handler } = worker({ upstreamFetch: vi.fn(async () => rawResponse(missingDaily)) });
     expect((await (await handler.fetch(weather(), env)).json()).data.available).toBe(false);
   });
   it.each([{}, [null], [{ ...city, lat: '52' }]])('rejects malformed geocode %j', async (data) => {
@@ -223,9 +223,9 @@ it('uses a 24-hour distant freshness and refreshes on near-term boundary transit
   const { handler } = worker({ now: () => clock, upstreamFetch });
   await handler.fetch(weather(), env); clock += 23 * 3600000;
   expect((await (await handler.fetch(weather(), env)).json()).meta.cached).toBe(true);
-  clock = Date.parse('2026-10-04T23:30:00Z');
+  clock = Date.parse('2026-10-05T23:30:00Z');
   await handler.fetch(weather(), env);
-  clock = Date.parse('2026-10-05T00:00:00Z');
+  clock = Date.parse('2026-10-06T00:00:00Z');
   await handler.fetch(weather(), env); expect(upstreamFetch).toHaveBeenCalledTimes(3);
 });
 it('tolerates a failed cache without caching an upstream failure', async () => {
@@ -242,7 +242,7 @@ it('keeps later weather stale at most 72 hours and unavailable weather fresh onl
   await handler.fetch(weather(), env); clock += 25 * 3600000;
   expect((await (await handler.fetch(weather(), env)).json()).meta.stale).toBe(true);
   clock += 48 * 3600000; expect((await handler.fetch(weather(), env)).status).toBe(502);
-  const missingFetch = vi.fn(async () => rawResponse({ date: daily.date }));
+  const missingFetch = vi.fn(async () => rawResponse(missingDaily));
   const missing = worker({ now: () => clock, upstreamFetch: missingFetch });
   await missing.handler.fetch(weather(), env); await missing.handler.fetch(weather(), env);
   expect(missingFetch).toHaveBeenCalledTimes(1);

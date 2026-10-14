@@ -49,7 +49,7 @@ preview for integration/security checks. Keep development servers local.
 - `GET /api/reverse-geocode?lat=...&lon=...`: finite bounded coordinates.
 - `POST /api/weather`: JSON `{ "lat": 52.52, "lon": 13.405, "date": "2026-10-13" }`.
   One location/date only; 16 KiB streamed body cap, strict calendar validation and
-  provisional existing-adapter bounds of 1979-01-02 through UTC today +540 days.
+  conservative application bounds of 1979-01-02 through UTC today +540 days.
 
 Unknown fields, credentials, arbitrary endpoints/URLs, invalid methods, oversized
 bodies and foreign browser origins are rejected. API responses are JSON/no-store
@@ -57,9 +57,15 @@ with stable error codes. The server chooses fixed HTTPS provider paths/metric
 units and normalizes responses before they reach React. Browser requests use
 native fetch, never OpenWeather URLs or API keys. There is no Axios dependency.
 
-High/low Celsius, snapshot cloud cover and total liquid-water-equivalent
-precipitation preserve zero vs missing values. Conditions unavailable from the
-existing daily summary are not guessed. Calendar dates remain `YYYY-MM-DD` values.
+Live weather uses a dedicated One Call 4.0 daily timeline adapter. High/low Celsius,
+provider conditions, cloud cover, humidity, wind, optional UV and precipitation
+probability preserve zero vs missing values. Scalar rain/snow is not exposed as a
+confirmed daily total: `precipitationMm` remains null in live responses. The legacy
+3.0 synthetic demo remains supported. Calendar dates remain `YYYY-MM-DD` values;
+returned timestamps are matched in the provider IANA timezone, including DST.
+Standard forecasts use TripCast's provisional today-through-+7 policy; later days
+are labelled Long-range estimate. This is not a claim about the provider's model
+switch or equal accuracy across horizons.
 Retry last lookup restores the submitted query; Reset cancels/invalidates pending
 work. Keyboard city choice and reduced-motion behavior are preserved.
 
@@ -70,14 +76,15 @@ provided; `.env*`, `.dev.vars*` and `.wrangler/` are ignored except example file
 Do not put weather credentials in browser settings or source. No browser
 configuration is currently required.
 
-Future live integration uses only `OPENWEATHER_API_KEY` in a Worker secret binding.
+Live integration uses only `OPENWEATHER_API_KEY` in a Worker secret binding.
 Local live validation, once separately approved, uses a gitignored `.dev.vars`
-file and fixture mode disabled. Wrangler has explicit local/staging/production
+file through a separately controlled path. Keep the local fixture configuration
+unchanged for ordinary development. Wrangler has explicit local/staging/production
 configuration; deployed/default settings disable fixtures. Fixtures also require
 a loopback request hostname, so deployed local configuration fails closed.
 A missing secret returns `SERVICE_UNCONFIGURED`, never fake success. No real key,
 Cloudflare account/domain, deployment token or external subscription is needed
-for this batch. Staging/production secrets must be separately configured only
+for fixture development. Staging/production secrets must be separately configured only
 after authorization. No deployment script or deployment is included.
 
 ## Verification
@@ -94,7 +101,8 @@ npm audit --package-lock-only --ignore-scripts
 integration; `test:worker` runs deterministic Worker Fetch/Streams/cache tests in
 Node with injected provider/cache/clock dependencies. `test:run` and `check` run
 both suites. Local Wrangler/workerd and headless Chrome smoke checks complement
-the Node/jsdom tests; no live-provider contract is claimed.
+the Node/jsdom tests; new 4.0 regression fixtures are sanitized captures from Batch 4A; timezone
+variants for other locations are synthetic, not live provider validation.
 
 Lint combines supported ESLint 10 core/Hooks/Fast Refresh with Oxlint React and
 accessibility checks. Tailwind stays on 3.4.19; its remaining build-tool advisories
@@ -106,12 +114,18 @@ audit output.
 The Worker uses the Cache API for normalized public data: seven-day geocoding,
 15-minute empty/unavailable results, three-hour near-term weather / 24-hour later
 weather freshness, with weather stale fallback within 24/72 hours respectively.
-Stale and fixture results are labeled. Without destination timezone validation,
-the UTC +8-day cache boundary is conservative; it does not label forecast confidence.
+Stale and fixture results are labeled. Live freshness and forecast labels use
+provider-local today; transition into the provisional eight-day window forces
+refresh. Cache namespace v2 separates live 4.0 from legacy/demo data.
 
 Ten city/reverse lookups or five weather requests per IP/route/minute, at most
 three concurrent upstream tasks, one retry for transient network/5xx failures and
-bounded in-flight/map sizes are **isolate-local** controls. Cache entries are
+bounded in-flight/map sizes are **isolate-local** controls. A visitor weather miss
+allows at most two pages/four HTTP attempts including retries, with an 18-second
+aggregate deadline, eight-second per-attempt timeout and three-second body-read
+limit. Provider pagination links are validated as metadata; every request is
+reconstructed against the fixed HTTPS host, including links returned as HTTP.
+The public weather route still accepts one date, not itineraries. Cache entries are
 location-local, can be evicted, and local workerd cache behavior is not worldwide
 storage. Memory counters reset/repartition and minute buckets allow edge bursts.
 These controls do **not** enforce a global billable account budget. Provider caps,
@@ -131,8 +145,11 @@ HSTS/domain preload is deferred until an actual HTTPS deployment is reviewed.
 - [Batch 1](docs/project-redesign/tripcast--phase-1--batch-1--implementation-report.md)
 - [Batch 2](docs/project-redesign/tripcast--phase-1--batch-2--implementation-report.md)
 - [Batch 3](docs/project-redesign/tripcast--phase-1--batch-3--implementation-report.md)
+- [Batch 4A validation](docs/project-redesign/tripcast--phase-1--batch-4a--api-validation.md)
+- [Batch 4B integration](docs/project-redesign/tripcast--phase-1--batch-4b--implementation-report.md)
 
-OpenWeather is the intended data provider. The existing 3.0 adapter is preserved
-for compatibility; 4.0 entitlement, timezone/precipitation semantics, attribution,
-pricing and sustainable quotas require separately authorized validation before
-live readiness. No subscription changes are implied by this code.
+OpenWeather 4.0 access and Paris daily responses were validated in Batch 4A.
+Daily precipitation aggregation, exact provider horizon/model boundaries,
+other-location live semantics, attribution/caching rights, quota enforcement and
+deployed behavior remain separate readiness checks. No subscription changes or
+deployment are implied by this integration.

@@ -18,4 +18,7 @@ export function rawResponse(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 }
 export const city = { name: 'Berlin', country: 'DE', lat: 52.52, lon: 13.405 };
-export const daily = { date: '2026-10-13', temperature: { min: 0, max: 15 }, precipitation: { total: 0 } };
+// Synthetic zero-valued regression day; real Paris fixtures are in fixtures/.
+export const daily = { date: '2026-10-13', lat: 52.52, lon: 13.405, timezone: 'UTC',
+  data: [{ dt: Date.parse('2026-10-13T00:00:00Z') / 1000, temp: { min: 0, max: 15 }, rain: 0 }] };
+export const missingDaily = { ...daily, data: [{ dt: daily.data[0].dt }] };

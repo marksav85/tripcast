@@ -1,5 +1,7 @@
 import { normalizeCandidates } from '../shared/locations.js';
 import { normalizeDaySummary } from './normalize.js';
+import { normalizeTimelineDay } from './normalizeTimeline.js';
+import { forecastPolicy } from './timeline.js';
 import { validateInput } from './validation.js';
 import { ApiError, malformed } from './errors.js';
 import { createProvider } from './provider.js';
@@ -10,6 +12,14 @@ const hour = 3600000;
 
 // Maps/concurrency controls are per isolate, bounded, and deliberately not a
 // worldwide allowance or persistent provider-account budget.
+function refreshLabels(payload, now) {
+  const model = payload.data?.model;
+  if (!model?.timeZone) return payload;
+  const policy = forecastPolicy(model.date, model.timeZone, now);
+  delete policy.near;
+  return { ...payload, data: { ...payload.data, model: { ...model, ...policy } } };
+}
+
 export function createWorker(options = {}) {
   const now = options.now ?? (() => Date.now());
   const provider = createProvider({
@@ -61,14 +71,15 @@ export function createWorker(options = {}) {
           && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
         if (env.MOCK_PROVIDER === 'true' && !mock) throw new ApiError('MOCK_MODE_DENIED', 503, 'Local fixture mode is unavailable here.');
         const cache = options.cache ?? globalThis.caches?.default;
-        const cacheKey = new Request(`${url.origin}/__tripcast-cache/v1/${mock ? 'fixture' : 'provider-3'}/${url.pathname.slice(5)}?${new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)]).sort())}&units=metric&lang=en`);
+        const cacheKey = new Request(`${url.origin}/__tripcast-cache/v2/${mock ? 'fixture' : 'provider-4'}/${url.pathname.slice(5)}?${new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)]).sort())}&units=metric&lang=en`);
         const today = new Date(now()).toISOString().slice(0, 10);
         const dayDistance = input.date ? (Date.parse(`${input.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / (24 * hour) : 0;
-        const near = dayDistance <= 8;
+        let near = dayDistance <= 8;
         let stored;
         try { stored = await (await cache?.match(cacheKey))?.json(); } catch { /* Cache failure must not break a lookup. */ }
+        if (stored?.payload?.data?.model?.timeZone) near = forecastPolicy(input.date, stored.payload.data.model.timeZone, now()).near;
         if (stored && (!stored.payload || !Number.isFinite(stored.freshUntil))) stored = undefined;
-        if (stored && now() < stored.freshUntil && !(url.pathname === '/api/weather' && near && !stored.near)) return jsonResponse({ ...stored.payload, meta: { ...stored.payload.meta, cached: true, stale: false } });
+        if (stored && now() < stored.freshUntil && !(url.pathname === '/api/weather' && near && !stored.near)) return jsonResponse(refreshLabels({ ...stored.payload, meta: { ...stored.payload.meta, cached: true, stale: false } }, now()));
         const key = cacheKey.url;
         try {
           if (!inFlight.has(key)) {
@@ -78,7 +89,10 @@ export function createWorker(options = {}) {
               let data;
               try {
                 if (url.pathname === '/api/weather') {
-                  const normalized = normalizeDaySummary(raw, { date: input.date, location: { lat: input.lat, lon: input.lon } });
+                  const normalized = mock
+                    ? normalizeDaySummary(raw, { date: input.date, location: { lat: input.lat, lon: input.lon } })
+                    : normalizeTimelineDay(raw, input.date, now());
+                  if (!mock) near = forecastPolicy(input.date, normalized.model.timeZone, now()).near;
                   // Cache contains meteorology only, never user-submitted labels/GPS metadata.
                   const model = { ...normalized.model };
                   delete model.location;
@@ -90,8 +104,8 @@ export function createWorker(options = {}) {
               } catch { throw malformed(); }
               if (env.OPENWEATHER_API_KEY && JSON.stringify(data).includes(JSON.stringify(env.OPENWEATHER_API_KEY).slice(1, -1))) throw malformed();
               const payload = { data, meta: { mock, cached: false, stale: false, fetchedAt: new Date(now()).toISOString() } };
-              // No IANA timezone in the 3.0 adapter: UTC +7/+8 edge is conservative
-              // (short freshness); definitive destination-day policy awaits 4.0.
+              // Live freshness uses destination-local policy; demo fixtures retain
+              // the conservative UTC boundary without inventing a timezone.
               const unavailable = url.pathname === '/api/weather' ? !data.available : !data.length;
               const fresh = unavailable ? 15 * 60000 : url.pathname === '/api/weather' ? (near ? 3 : 24) * hour : 7 * 24 * hour;
               const retention = unavailable ? fresh : url.pathname === '/api/weather' ? (near ? 24 : 72) * hour : fresh;
@@ -103,11 +117,11 @@ export function createWorker(options = {}) {
             // Do not leave a rejected cleanup promise unhandled.
             void work.then(() => inFlight.delete(key), () => inFlight.delete(key));
           }
-          return jsonResponse(await inFlight.get(key));
+          return jsonResponse(refreshLabels(await inFlight.get(key), now()));
         } catch (error) {
           if (stored && now() < Math.min(stored.staleUntil, url.pathname === '/api/weather' && near ? Date.parse(stored.payload.meta.fetchedAt) + 24 * hour : stored.staleUntil) && stored.payload?.data?.available
             && error instanceof ApiError && ['UPSTREAM_FAILURE', 'UPSTREAM_TIMEOUT', 'UPSTREAM_LIMIT', 'SERVICE_BUSY'].includes(error.code)) {
-            return jsonResponse({ ...stored.payload, meta: { ...stored.payload.meta, cached: true, stale: true } });
+            return jsonResponse(refreshLabels({ ...stored.payload, meta: { ...stored.payload.meta, cached: true, stale: true } }, now()));
           }
           throw error;
         }

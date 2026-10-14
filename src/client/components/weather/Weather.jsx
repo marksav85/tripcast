@@ -47,13 +47,19 @@ export default function Weather() {
             </div>
             <div className="flex items-center gap-4">
               <img src={cloudyIcon} className="w-20 h-20" alt="" />
-              <dl><dt>Cloud cover (provider snapshot)</dt><dd>{result.cloudPercent === null ? 'Unavailable' : `${result.cloudPercent}%`}</dd></dl>
+              <dl><dt>Cloud cover ({result.semantics?.cloud ?? 'provider snapshot'})</dt><dd>{result.cloudPercent === null ? 'Unavailable' : `${result.cloudPercent}%`}</dd></dl>
             </div>
             <div className="flex items-center gap-4">
               <img src={raindropIcon} className="w-20 h-20" alt="" />
               <dl><dt>Total precipitation (liquid-water equivalent)</dt><dd>{result.precipitationMm === null ? 'Unavailable' : `${result.precipitationMm} mm`}</dd></dl>
             </div>
-            <p className="text-sm text-gray-700">Weather conditions: unavailable from this daily summary.</p>
+            <p className="text-sm text-gray-700">{result.condition
+              ? `Weather conditions: ${result.condition.description}.`
+              : 'Weather conditions: unavailable from this daily summary.'}</p>
+            {result.precipitationProbability != null && <p className="text-sm text-gray-700">
+              Precipitation probability: {Math.round(result.precipitationProbability * 100)}%
+            </p>}
+            {result.forecastLabel && <p className="text-sm text-gray-700">{result.forecastLabel} — TripCast provisional eight-day policy. Long-range estimates are less certain.</p>}
             <p className="text-sm text-gray-700">{result.source}. Missing measurements are unavailable.</p>
             {result.freshness?.mock && <p className="text-sm text-gray-700">Local demonstration data — not a live forecast.</p>}
             {result.freshness?.stale && <p role="alert" className="text-sm text-gray-700">Showing older cached weather while the service is unavailable.</p>}

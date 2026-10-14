@@ -4,8 +4,8 @@ import { validCoordinates } from '../shared/locations.js';
 const numberIn = (value, min, max) => typeof value === 'number'
   && Number.isFinite(value) && value >= min && value <= max ? value : null;
 
-// Adapter for the existing 3.0 day_summary only. 4.0 needs a separately
-// validated adapter producing this presentation model, not a guessed schema.
+// Legacy 3.0 day_summary compatibility adapter for credential-free demos.
+// Live 4.0 responses use normalizeTimeline.js, never these raw-field semantics.
 export function normalizeDaySummary(data, query, units = 'metric') {
   if (!data || typeof data !== 'object' || Array.isArray(data)
     || !isCalendarDate(data.date) || data.date !== query.date

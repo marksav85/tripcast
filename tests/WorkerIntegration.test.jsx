@@ -5,6 +5,7 @@ import { WeatherProvider } from '../src/client/context/WeatherContextProvider';
 import { createWorker } from '../src/worker/index';
 import { fetchMock } from './fixtures/api';
 import { deferred } from './fixtures/weather';
+import nearTimeline from './worker/fixtures/paris-near.json';
 
 function wireWorker(options = {}, env = { STAGE: 'local', MOCK_PROVIDER: 'true' }) {
   const upstreamFetch = options.upstreamFetch ?? vi.fn(() => { throw new Error('Unexpected real provider request'); });
@@ -49,4 +50,22 @@ it('continues to ignore late Worker responses after Reset', async () => {
   await act(async () => pending.resolve(new Response(JSON.stringify([{ name: 'Berlin', country: 'DE', lat: 52.52, lon: 13.405 }]), { headers: { 'Content-Type': 'application/json' } })));
   expect(screen.getByText('Enter a city and date to see weather.')).toBeVisible();
   expect(screen.getByLabelText('City:')).toHaveValue('');
+});
+
+it('renders a real 4.0 fixture through the Worker without exposing daily rain totals or credentials', async () => {
+  const key = 'integration-synthetic-marker';
+  wireWorker({ now: () => Date.parse('2026-10-14T12:00:00Z'), upstreamFetch: vi.fn(async (url) => {
+    const data = new URL(url).pathname.endsWith('/direct')
+      ? [{ name: 'Paris', country: 'FR', lat: 48.8566, lon: 2.3522 }] : nearTimeline;
+    return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+  }) }, { OPENWEATHER_API_KEY: key });
+  fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Paris' } });
+  fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: '2026-10-14' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  await screen.findByText('Weather loaded.');
+  expect(screen.getByText('Weather conditions: overcast clouds.')).toBeVisible();
+  expect(screen.getByText('Precipitation probability: 0%')).toBeVisible();
+  expect(screen.getByText(/Standard forecast — TripCast provisional/)).toBeVisible();
+  expect(screen.queryByText('0 mm')).not.toBeInTheDocument();
+  expect(document.body.textContent).not.toContain(key);
 });
