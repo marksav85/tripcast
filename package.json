@@ -22,6 +22,7 @@
     "@fortawesome/fontawesome-svg-core": "^6.6.0",
     "@fortawesome/free-solid-svg-icons": "^6.6.0",
     "@fortawesome/react-fontawesome": "^0.2.2",
+    "@photostructure/tz-lookup": "11.7.0",
     "@supabase/supabase-js": "2.117.3",
     "lottie-react": "^2.4.0",
     "prop-types": "^15.8.1",
