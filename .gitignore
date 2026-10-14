@@ -27,11 +27,12 @@ public/media/originals
 public/weather-icons-master
 tree.txt
 
-# redesign files
-docs/project-redesign
 # Local Worker state and secret files (examples contain placeholders only)
 .wrangler/
 .dev.vars*
 !.dev.vars.example
 .env*
 !.env.example
+
+# docs
+docs
