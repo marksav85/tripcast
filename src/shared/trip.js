@@ -47,7 +47,8 @@ export function coveredCalendarDates(startDate, endDate) {
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const label = (value) => typeof value === 'string' && Array.from(value).length <= 100
-  && value.trim().length > 0 && !Array.from(value).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127);
+  && value.trim().length > 0 && !Array.from(value).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127
+    || (char.codePointAt(0) >= 0xD800 && char.codePointAt(0) <= 0xDFFF));
 
 /** Validate a named IANA zone, not a fixed offset/abbreviation. No coordinate resolution. */
 export function isTripTimeZone(value) {

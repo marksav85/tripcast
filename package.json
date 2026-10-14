@@ -14,7 +14,9 @@
     "dev:worker": "wrangler dev --local --env local --port 8787",
     "preview:worker": "npm run build && npm run dev:worker",
     "test:worker": "vitest run --config vitest.worker.config.js",
-    "test:client": "vitest run"
+    "test:client": "vitest run",
+    "db:reset": "node scripts/reset-local-db.mjs",
+    "test:db": "node scripts/test-db-sql.mjs && node scripts/test-local-db.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.6.0",
@@ -42,6 +44,7 @@
     "jsdom": "30.1.2",
     "oxlint": "1.88.0",
     "postcss": "8.5.30",
+    "supabase": "2.120.0",
     "tailwindcss": "3.4.19",
     "vite": "7.3.7",
     "vitest": "5.0.4",

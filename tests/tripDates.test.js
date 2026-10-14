@@ -73,7 +73,7 @@ describe('complete trip validation and ownership', () => {
     for (const [lat, lon] of [[0, 0], [90, 180], [-90, -180]]) expect(validateTripDraft(draft(undefined, undefined, [destination(0, '2027-06-01', '2027-06-02', { lat, lon })])).valid).toBe(true);
   });
   it.each([['cityName', ''], ['cityName', 'x'.repeat(101)], ['cityName', 'A\nB'], ['countryCode', 'fr'], ['countryCode', 'FRA'], ['countryCode', 'FR\n'], ['region', 12], ['region', ''], ['region', 'x'.repeat(101)], ['timeZone', '+02:00'], ['timeZone', 'PST'], ['timeZone', 'Invalid/Zone']])('rejects malformed metadata %s', (field, value) => invalid(draft(undefined, undefined, [destination(0, '2027-06-01', '2027-06-02', { [field]: value })])));
-  it.each(['', ' '.repeat(5), 'x'.repeat(101), 'A\0B', 12])('rejects invalid title %j', (title) => invalid({ ...draft(), title }));
+  it.each(['', ' '.repeat(5), 'x'.repeat(101), 'A\0B', '\uD800', '\uDC00', 12])('rejects invalid title %j', (title) => invalid({ ...draft(), title }));
   it('normalizes copied labels without mutation, with stable field-error result', () => {
     const d = draft(); d.title = '  Summer  '; d.destinations[0].cityName = ' Paris '; d.destinations[0].region = ' Île-de-France ';
     const before = structuredClone(d); const r = validateTripDraft(d);

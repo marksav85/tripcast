@@ -1,4 +1,4 @@
-import { isCalendarDate } from './calendar';
+import { isCalendarDate } from './calendar.js';
 
 export function validCoordinates(lat, lon) {
   return typeof lat === 'number' && typeof lon === 'number'
