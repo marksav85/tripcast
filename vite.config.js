@@ -12,6 +12,10 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // Development only: Auth uses HTTP, not Realtime. Keep HMR origins explicit.
+    headers: {
+      "Content-Security-Policy": "connect-src 'self' http://127.0.0.1:54321 ws://localhost:5173 ws://127.0.0.1:5173",
+    },
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8787",

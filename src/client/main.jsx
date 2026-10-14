@@ -5,10 +5,16 @@ import App from "./App.jsx";
 import "./index.css";
 import { WeatherProvider } from "./context/WeatherContextProvider";
 
+import { AuthProvider } from "./context/AuthContextProvider.jsx";
+import AuthAvailability from "./components/AuthAvailability.jsx";
+
 config.autoAddCss = false;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <WeatherProvider>
-    <App />
-  </WeatherProvider>
+  <AuthProvider>
+    <AuthAvailability />
+    <WeatherProvider>
+      <App />
+    </WeatherProvider>
+  </AuthProvider>
 );
