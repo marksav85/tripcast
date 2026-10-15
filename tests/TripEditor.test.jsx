@@ -103,7 +103,8 @@ it('preserves public weather lookup while the local editor preview is open', asy
   const {default:App}=await import('../src/client/App.jsx');
   const {WeatherProvider}=await import('../src/client/context/WeatherContextProvider.jsx');
   const {fetchMock,apiResponse}=await import('./fixtures/api'); const {berlin,daySummary}=await import('./fixtures/weather');
-  render(<><Preview /><WeatherProvider><App /></WeatherProvider></>);
+  const { AuthContext } = await import('../src/client/auth/context.js');
+  render(<AuthContext.Provider value={{ isAuthenticated: false }}><Preview /><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
   fireEvent.click(screen.getByRole('button',{name:'Open local trip editor'}));
   expect(screen.getByRole('region',{name:'Trip editor'})).toBeInTheDocument();
   fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));

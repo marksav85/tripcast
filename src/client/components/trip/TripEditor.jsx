@@ -15,7 +15,7 @@ function rowsOf(draft) {
  * onSubmit receives only a normalized valid trip; onCancel follows restoration of the snapshot.
  * UI row keys are never included in the trip contract. No persistence is performed here.
  */
-export default function TripEditor({ initialDraft = empty, onChange, onSubmit, onCancel }) {
+export default function TripEditor({ initialDraft = empty, onChange, onSubmit, onCancel, submitLabel = 'Review validated draft', submitMessage = 'Validated draft delivered for review. Nothing has been saved.', submitDisabled = false }) {
   const id = useId(); const counter = useRef(0);
   const [initial] = useState(() => structuredClone(initialDraft));
   const [details, setDetails] = useState(() => ({ title: initial.title, startDate: initial.startDate, endDate: initial.endDate }));
@@ -37,8 +37,8 @@ export default function TripEditor({ initialDraft = empty, onChange, onSubmit, o
     setRows(rowsOf(initial)); setReset((old) => old + 1); setMessage('Changes discarded.'); onCancel?.();
   }
   function submit() {
-    if (!validation.valid) return;
-    onSubmit?.(structuredClone(validation.trip)); setMessage('Validated draft delivered for review. Nothing has been saved.');
+    if (!validation.valid || submitDisabled) return;
+    onSubmit?.(structuredClone(validation.trip)); setMessage(submitMessage);
   }
   const errors = validation.errors;
   function field(label, name, value, change, type, path = name) {
@@ -61,7 +61,7 @@ export default function TripEditor({ initialDraft = empty, onChange, onSubmit, o
     <button type="button" className={buttonClass} disabled={rows.length >= MAX_DESTINATIONS} onClick={() => { const key = `new-${counter.current++}`; setMessage(''); setRows((old) => [...old, { key, location: null, arrivalDate: '', departureDate: '' }]); }}>Add destination</button>
     <output className="block" aria-live="polite">{validation.valid ? `${validation.allocations.length} weather days across ${rows.length} ${rows.length === 1 ? 'destination' : 'destinations'}.` : 'Draft is incomplete or invalid. Review the fields below.'}</output>
     {!validation.valid && <ul className="text-red-700 text-sm" aria-label="Validation issues">{Object.entries(errors).map(([path, text]) => <li key={path}>{path.startsWith('destinations.') ? `Destination ${Number(path.split('.')[1]) + 1}: ` : ''}{text}</li>)}</ul>}
-    <div className="flex flex-wrap gap-3"><button type="button" className="bg-blue-600 text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-50" disabled={!validation.valid} onClick={submit}>Review validated draft</button><button type="button" className={buttonClass} onClick={discard}>Discard changes</button></div>
+    <div className="flex flex-wrap gap-3"><button type="button" className="bg-blue-600 text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-50" disabled={!validation.valid || submitDisabled} onClick={submit}>{submitLabel}</button><button type="button" className={buttonClass} onClick={discard}>Discard changes</button></div>
     <output className="block" aria-live="polite">{message}</output>
   </section>;
 }
