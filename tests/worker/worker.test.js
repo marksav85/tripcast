@@ -255,3 +255,35 @@ it('bounds a stalled upstream response body separately from the connection timeo
   await vi.advanceTimersByTimeAsync(3001);
   expect(await errorCode(await result)).toBe('UPSTREAM_TIMEOUT'); expect(upstreamFetch).toHaveBeenCalledTimes(1);
 });
+
+describe('geocoding query isolation', () => {
+  const cities = [city,
+    { name: 'Hamburg', country: 'DE', lat: 53.5511, lon: 9.9937 },
+    { name: 'Munich', country: 'DE', lat: 48.1351, lon: 11.582 },
+  ];
+  it('intentionally returns the Berlin fallback for these queries in local fixture mode', async () => {
+    const { handler, upstreamFetch } = worker();
+    for (const candidate of cities) {
+      const response = await handler.fetch(request(`/api/geocode?q=${candidate.name}`), mockEnv);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ data: [city], meta: { mock: true } });
+    }
+    expect(upstreamFetch).not.toHaveBeenCalled();
+  });
+  it('forwards distinct queries and keeps provider results separate, including cached results', async () => {
+    const upstreamFetch = vi.fn(async (url) => {
+      const parsed = new URL(url);
+      expect(parsed.pathname).toBe('/geo/1.0/direct');
+      const candidate = cities.find(item => item.name === parsed.searchParams.get('q'));
+      expect(candidate).toBeDefined();
+      return rawResponse([candidate]);
+    });
+    const { handler } = worker({ upstreamFetch });
+    for (const candidate of [...cities, ...cities]) {
+      const response = await handler.fetch(request(`/api/geocode?q=${candidate.name}`), env);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ data: [candidate], meta: { mock: false } });
+    }
+    expect(upstreamFetch).toHaveBeenCalledTimes(3);
+  });
+});

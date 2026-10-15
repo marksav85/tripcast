@@ -5,24 +5,17 @@ import { resolveTimeZone } from '../../lib/timeZone.js';
 import { isTripTimeZone } from '../../../shared/trip.js';
 
 const inputClass = 'w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500';
-function timezoneCatalog() {
-  try { return [...new Set(['UTC', ...Intl.supportedValuesOf('timeZone')])].filter(isTripTimeZone).sort(); }
-  catch { return null; }
-}
-
-/** onChange receives complete location fields, or null while selection is incomplete/invalid. */
-export default function DestinationSelector({ onChange }) {
+/** initialValue is a mount-time location snapshot; remount to replace it. onChange receives complete location fields, or null while selection is incomplete/invalid. */
+export default function DestinationSelector({ onChange, initialValue = null }) {
   const id = useId();
-  const [query, setQuery] = useState(''); const [candidates, setCandidates] = useState([]);
+  const [query, setQuery] = useState(initialValue?.cityName ?? ''); const [candidates, setCandidates] = useState([]);
   const [status, setStatus] = useState('idle'); const [message, setMessage] = useState('');
-  const [location, setLocation] = useState(null); const [timeZone, setTimeZone] = useState('');
-  const [suggestion, setSuggestion] = useState(null); const [filter, setFilter] = useState('');
-  const [catalog] = useState(timezoneCatalog);
+  const [location, setLocation] = useState(initialValue ? { id: `${initialValue.lat},${initialValue.lon}`, name: initialValue.cityName, country: initialValue.countryCode, region: initialValue.region ?? '', lat: initialValue.lat, lon: initialValue.lon } : null);
   const request = useRef(null); const generation = useRef(0);
   useEffect(() => () => { generation.current += 1; request.current?.abort(); }, []);
   function clearSearch() {
     generation.current += 1; request.current?.abort();
-    setCandidates([]); setLocation(null); setTimeZone(''); setSuggestion(null); setFilter(''); onChange(null);
+    setCandidates([]); setLocation(null); onChange(null);
   }
   function editQuery(value) { clearSearch(); setQuery(value); setStatus('idle'); setMessage(''); }
   async function search(event) {
@@ -57,17 +50,15 @@ export default function DestinationSelector({ onChange }) {
       });
     if (!labelValid(city.name) || (city.region && !labelValid(city.region))
       || !/^[A-Z]{2}$/.test(city.country) || !validCoordinates(city.lat, city.lon)) {
-      setLocation(null); setTimeZone(''); setSuggestion(null); onChange(null);
+      setLocation(null); onChange(null);
       setMessage('Selected city data is invalid. Choose another result.'); return;
     }
     const result = resolveTimeZone(city.lat, city.lon);
     const zone = result.status === 'suggested' && isTripTimeZone(result.timeZone) ? result.timeZone : '';
-    setLocation(city); setSuggestion(zone || null); setTimeZone(zone); setFilter('');
+    setLocation(zone ? city : null);
+    setMessage(zone ? '' : 'Could not select this location. Try selecting it again or choose another city.');
     output(city, zone);
   }
-  function changeZone(zone) { setTimeZone(zone); output(location, zone); }
-  const validZone = isTripTimeZone(timeZone);
-  const options = catalog ? [...new Set([...(validZone ? [timeZone] : []), ...catalog.filter((zone) => zone.toLowerCase().includes(filter.toLowerCase()))])] : [];
   return <section aria-label="Destination location" className="bg-white rounded-lg p-4 space-y-4">
     <form onSubmit={search} noValidate className="space-y-2">
       <label htmlFor={id + '-city'} className="block font-medium">Search city</label>
@@ -76,15 +67,6 @@ export default function DestinationSelector({ onChange }) {
     </form>
     <output className="block" aria-live="polite">{message}</output>
     {candidates.length > 0 && <fieldset className="space-y-2"><legend>Choose a city</legend>{candidates.map((city) => <button key={city.id} type="button" aria-pressed={location?.id === city.id} onClick={() => choose(city)} className="block w-full p-2 border border-blue-500 rounded-lg text-left focus:ring-2 focus:ring-blue-500">{locationLabel(city)}</button>)}</fieldset>}
-    {location && <div className="space-y-2">
-      <p>Selected city: {locationLabel(location)}</p>
-      <p id={id + '-help'}>{suggestion ? `Suggested timezone: ${suggestion}. Review and correct if necessary.` : 'Timezone could not be suggested. Choose a named timezone manually.'}</p>
-      {catalog && <><label htmlFor={id + '-filter'}>Filter timezones</label><input id={id + '-filter'} type="search" value={filter} onChange={(e) => setFilter(e.target.value)} className={inputClass} /></>}
-      <label htmlFor={id + '-zone'} className="block font-medium">Timezone</label>
-      {catalog ? <select id={id + '-zone'} value={timeZone} onChange={(e) => changeZone(e.target.value)} className={inputClass} aria-describedby={id + '-help'} aria-invalid={!validZone} required>
-        <option value="">Choose a timezone</option>{options.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
-      </select> : <input id={id + '-zone'} value={timeZone} onChange={(e) => changeZone(e.target.value)} placeholder="e.g., Europe/Paris or UTC" className={inputClass} aria-describedby={id + '-help'} aria-invalid={!validZone} required />}
-      <output className="block" aria-live="polite">{validZone ? `Selected timezone: ${timeZone}` : 'A valid named timezone is required.'}</output>
-    </div>}
+    {location && <p>Selected city: {locationLabel(location)}</p>}
   </section>;
 }

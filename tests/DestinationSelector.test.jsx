@@ -17,7 +17,7 @@ async function selectParis() {
   fetchMock.mockResolvedValueOnce(apiResponse([paris])); search();
   fireEvent.click(await screen.findByRole('button', { name: 'Paris, FR' }));
 }
-it('uses existing geocoding and emits only reviewed location fields after explicit selection', async () => {
+it('uses existing geocoding and emits only validated location fields after explicit selection', async () => {
   const { onChange } = setup(); fetchMock.mockResolvedValueOnce(apiResponse([paris])); search();
   const city = await screen.findByRole('button', { name: 'Paris, FR' });
   expect(onChange).toHaveBeenLastCalledWith(null); expect(resolve).not.toHaveBeenCalled();
@@ -25,7 +25,8 @@ it('uses existing geocoding and emits only reviewed location fields after explic
   expect(fetchMock.mock.calls[0][0]).toBe('/api/geocode?q=Paris');
   expect(resolve).toHaveBeenCalledWith(48.8566, 2.3522);
   expect(onChange).toHaveBeenLastCalledWith({ cityName: 'Paris', countryCode: 'FR', region: null, lat: 48.8566, lon: 2.3522, timeZone: 'Europe/Paris' });
-  expect(screen.getByLabelText('Timezone')).toHaveValue('Europe/Paris');
+  expect(screen.queryByText(/timezone/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
 });
 it('differentiates duplicate names using country and region', async () => {
   const { onChange } = setup(); fetchMock.mockResolvedValueOnce(apiResponse([londonUK, londonCA])); search('London');
@@ -49,53 +50,34 @@ it('cancels requests and ignores out-of-order responses', async () => {
   await act(async () => first.resolve(apiResponse([londonUK])));
   expect(screen.queryByRole('button', { name: /London, England/ })).not.toBeInTheDocument();
 });
-it.each([{ status: 'unresolved', timeZone: null }, { status: 'suggested', timeZone: 'Invalid/Zone' }])('requires manual timezone when the suggestion is unusable %#', async (result) => {
+it.each([{ status: 'unresolved', timeZone: null }, { status: 'suggested', timeZone: 'Invalid/Zone' }])('keeps failed resolution incomplete and allows retry %#', async (result) => {
   resolve.mockReturnValue(result); const { onChange } = setup(); await selectParis();
-  expect(screen.getByText(/Timezone could not be suggested/)).toBeInTheDocument(); expect(onChange).toHaveBeenLastCalledWith(null);
-  const selector = screen.getByLabelText('Timezone'); expect(selector).toHaveAttribute('aria-invalid', 'true');
-  fireEvent.change(selector, { target: { value: 'UTC' } });
-  expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'UTC' }));
-});
-it('filters and corrects timezone without losing the selected suggestion', async () => {
-  const { onChange } = setup(); await selectParis();
-  fireEvent.change(screen.getByLabelText('Filter timezones'), { target: { value: 'New_York' } });
-  expect(screen.getByLabelText('Timezone')).toHaveValue('Europe/Paris');
-  expect(screen.getByRole('option', { name: 'America/New_York' })).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'America/New_York' } });
-  expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'America/New_York' }));
-  fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: '' } });
+  expect(screen.getByText(/Could not select this location/)).toBeInTheDocument();
   expect(onChange).toHaveBeenLastCalledWith(null);
+  expect(screen.queryByText(/timezone/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Selected city:/)).not.toBeInTheDocument();
+  resolve.mockReturnValue({ status: 'suggested', timeZone: 'Europe/Paris' });
+  fireEvent.click(screen.getByRole('button', { name: 'Paris, FR' }));
+  expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'Europe/Paris' }));
+  expect(screen.queryByText(/Could not select this location/)).not.toBeInTheDocument();
 });
-it('preserves a valid alias missing from the catalog', async () => {
-  const spy = vi.spyOn(Intl, 'supportedValuesOf').mockReturnValue(['Europe/Paris']);
-  try {
-    resolve.mockReturnValue({ status: 'suggested', timeZone: 'US/Eastern' }); setup(); await selectParis();
-    expect(screen.getByLabelText('Timezone')).toHaveValue('US/Eastern'); expect(screen.getByRole('option', { name: 'UTC' })).toBeInTheDocument();
-  } finally { spy.mockRestore(); }
-});
-it('supports validated manual entry when the platform catalog is unavailable', async () => {
-  const spy = vi.spyOn(Intl, 'supportedValuesOf').mockImplementation(() => { throw new Error(); });
-  try {
-    const { onChange } = setup(); await selectParis(); const input = screen.getByLabelText('Timezone');
-    fireEvent.change(input, { target: { value: 'PST' } }); expect(onChange).toHaveBeenLastCalledWith(null);
-    expect(input).toHaveAttribute('aria-invalid', 'true');
-    fireEvent.change(input, { target: { value: 'Pacific/Kiritimati' } }); expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'Pacific/Kiritimati' }));
-  } finally { spy.mockRestore(); }
+it('accepts a validated automatic alias without a timezone catalog', async () => {
+  resolve.mockReturnValue({ status: 'suggested', timeZone: 'US/Eastern' });
+  const { onChange } = setup(); await selectParis();
+  expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'US/Eastern' }));
 });
 it('invalidates the prior selection while searching again and recalculates the replacement timezone', async () => {
   const { onChange } = setup(); await selectParis();
-  fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'UTC' } });
   resolve.mockReturnValue({ status: 'suggested', timeZone: 'Europe/London' }); fetchMock.mockResolvedValueOnce(apiResponse([londonUK])); search('London');
   expect(onChange).toHaveBeenLastCalledWith(null); expect(screen.queryByLabelText('Timezone')).not.toBeInTheDocument();
   fireEvent.click(await screen.findByRole('button', { name: 'London, England, GB' }));
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ cityName: 'London', timeZone: 'Europe/London' }));
 });
-it('supports keyboard city selection and labelled native timezone control focus', async () => {
-  const user = userEvent.setup(); setup(); fetchMock.mockResolvedValueOnce(apiResponse([paris])); search();
+it('supports keyboard city selection with automatic resolution', async () => {
+  const user = userEvent.setup(); const { onChange } = setup(); fetchMock.mockResolvedValueOnce(apiResponse([paris])); search();
   const city = await screen.findByRole('button', { name: 'Paris, FR' }); city.focus(); await user.keyboard('{Enter}');
-  screen.getByLabelText('Filter timezones').focus(); await user.tab();
-  expect(screen.getByRole('combobox', { name: 'Timezone' })).toHaveFocus();
-  await user.selectOptions(screen.getByLabelText('Timezone'), 'UTC'); expect(screen.getByText('Selected timezone: UTC')).toBeInTheDocument();
+  expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'Europe/Paris' }));
+  expect(screen.queryByText(/timezone/i)).not.toBeInTheDocument();
 });
 it('aborts a pending search on unmount without late callbacks', async () => {
   const pending = deferred(); const { onChange, unmount } = setup(); fetchMock.mockReturnValueOnce(pending.promise); search();
@@ -108,4 +90,39 @@ it('rejects provider labels outside the trip contract', async () => {
   fireEvent.click(await screen.findByRole('button', { name: /^Paris,/ }));
   expect(screen.getByText('Selected city data is invalid. Choose another result.')).toBeInTheDocument();
   expect(onChange).toHaveBeenLastCalledWith(null); expect(resolve).not.toHaveBeenCalled();
+});
+
+it('does not retain the prior city timezone when replacement resolution fails', async () => {
+  const { onChange } = setup();
+  fetchMock.mockResolvedValueOnce(apiResponse([paris, londonUK])); search();
+  fireEvent.click(await screen.findByRole('button', { name: 'Paris, FR' }));
+  expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'Europe/Paris' }));
+  resolve.mockReturnValue({ status: 'unresolved', timeZone: null });
+  fireEvent.click(screen.getByRole('button', { name: 'London, England, GB' }));
+  expect(onChange).toHaveBeenLastCalledWith(null);
+  expect(screen.getByText(/Could not select this location/)).toBeInTheDocument();
+});
+
+it('renders distinct query responses and emits each selected location with its automatic timezone', async () => {
+  const { resolveTimeZone } = await vi.importActual('../src/client/lib/timeZone.js');
+  resolve.mockImplementation(resolveTimeZone);
+  const { onChange } = setup();
+  const cities = [
+    { name: 'Berlin', country: 'DE', lat: 52.52, lon: 13.405 },
+    { name: 'Hamburg', country: 'DE', lat: 53.5511, lon: 9.9937 },
+    { name: 'Munich', country: 'DE', lat: 48.1351, lon: 11.582 },
+  ];
+  let previous;
+  for (const city of cities) {
+    const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
+    search(city.name);
+    expect(fetchMock.mock.calls.at(-1)[0]).toBe(`/api/geocode?q=${city.name}`);
+    expect(onChange).toHaveBeenLastCalledWith(null);
+    if (previous) expect(screen.queryByRole('button', { name: `${previous.name}, DE` })).not.toBeInTheDocument();
+    await act(async () => pending.resolve(apiResponse([city])));
+    fireEvent.click(await screen.findByRole('button', { name: `${city.name}, DE` }));
+    expect(onChange).toHaveBeenLastCalledWith({ cityName: city.name, countryCode: city.country,
+      region: null, lat: city.lat, lon: city.lon, timeZone: 'Europe/Berlin' });
+    previous = city;
+  }
 });
