@@ -95,14 +95,6 @@ export function createWeatherRetrieval({ provider, now = () => Date.now(), inFli
   async function getRange(input, env, options) {
     const dates = timelineDates(input);
     options.context?.check();
-    if (options.mock) {
-      const outcomes = [];
-      for (const date of dates) {
-        try { outcomes.push(outcome(date, await getDay({ ...input, date }, env, options))); }
-        catch (error) { outcomes.push(failed(date, safeFailure(error))); }
-      }
-      return outcomes;
-    }
     const entries = await Promise.all(dates.map(date => read({ ...input, date }, options)));
     const hits = dates.map((date, i) => fresh({ ...input, date }, options, entries[i]));
     if (hits.every(Boolean)) return hits.map((hit, i) => outcome(dates[i], hit));
@@ -110,18 +102,18 @@ export function createWeatherRetrieval({ provider, now = () => Date.now(), inFli
     let raw;
     try {
       raw = await provider('/api/weather', { lat: input.lat, lon: input.lon, date: missing[0], endDate: missing.at(-1) },
-        env, false, { context: options.context, partial: true });
+        env, options.mock, { context: options.context, partial: true });
     } catch (error) {
       const safe = safeFailure(error);
       raw = { days: missing.map(date => ({ date, record: null, error: safe })) };
     }
     return Promise.all(dates.map(async (date, i) => {
       if (hits[i]) return outcome(date, hits[i]);
-      const day = raw.days.find(day => day.date === date);
+      const day = options.mock && raw.mockDays ? raw.mockDays.find(day => day.date === date) : raw.days.find(day => day.date === date);
       try {
         if (day?.error) throw day.error;
         if (!day) throw malformed();
-        return outcome(date, await store({ ...input, date }, env, options, raw));
+        return outcome(date, await store({ ...input, date }, env, options, options.mock ? day.raw : raw));
       } catch (error) {
         const safe = safeFailure(error);
         const fallback = stale({ ...input, date }, options, entries[i], safe);

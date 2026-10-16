@@ -38,28 +38,33 @@ beforeEach(async () => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('protected trip-weather boundary', () => {
-  it('returns the deliberate stub response without provider or cache access', async () => {
+  it('returns authenticated fixture weather without provider access', async () => {
     const jwt = await token();
     const response = await handler.fetch(trip(jwt), env);
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(200);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(await response.json()).toEqual({ error: { code: 'TRIP_WEATHER_NOT_IMPLEMENTED', message: 'Trip weather aggregation is not available yet.' } });
+    const payload = await response.json();
+    expect(payload.meta).toEqual({ partial: false, mock: true });
+    expect(payload.data.days).toHaveLength(2);
+    expect(payload.data.days.every(day => day.status === 'available')).toBe(true);
   });
   afterEach(() => {
     expect(upstreamFetch).not.toHaveBeenCalled();
-    expect(cache.match).not.toHaveBeenCalled(); expect(cache.put).not.toHaveBeenCalled();
   });
   it.each([undefined, 'Basic synthetic', 'Bearer', 'Bearer not.a.jwt', 'Bearer a.b.c extra', 'Bearer a.b.c, Bearer d.e.f'])('rejects missing or malformed authorization %s', async (authorization) => {
     await check(await handler.fetch(trip(null, { draft: draft() }, authorization ? { Authorization: authorization } : {}), env), 401, 'UNAUTHENTICATED');
+    expect(cache.match).not.toHaveBeenCalled(); expect(cache.put).not.toHaveBeenCalled();
   });
   it.each([
     ['expired', () => ({ exp: now() - 1 })], ['issuer', () => ({ iss: 'https://evil.example/auth/v1' })],
     ['audience', () => ({ aud: 'anon' })], ['role', () => ({ role: 'anon' })],
   ])('rejects invalid %s', async (_label, claims) => {
     await check(await handler.fetch(trip(await token(claims())), env), 401, 'UNAUTHENTICATED');
+    expect(cache.match).not.toHaveBeenCalled(); expect(cache.put).not.toHaveBeenCalled();
   });
   it('rejects an invalid signature', async () => {
     await check(await handler.fetch(trip(await token({}, await generateKeyPair('ES256'))), env), 401, 'UNAUTHENTICATED');
+    expect(cache.match).not.toHaveBeenCalled(); expect(cache.put).not.toHaveBeenCalled();
   });
   it('reports unavailable trusted configuration', async () => {
     await check(await handler.fetch(trip(await token()), { ...env, SUPABASE_JWT_ISSUER: undefined }), 503, 'AUTH_UNAVAILABLE');
@@ -83,12 +88,17 @@ describe('protected trip-weather boundary', () => {
     { draft: { ...draft(), destinations: [{ ...draft().destinations[0], arrivalDate: '2027-06-02' }] } },
   ])('rejects invalid trip envelopes %j', async (body) => {
     await check(await handler.fetch(trip(await token(), body), env), 400, 'INVALID_INPUT');
+    expect(cache.match).not.toHaveBeenCalled(); expect(cache.put).not.toHaveBeenCalled();
   });
   it('accepts the 42-day and eight-destination contract boundaries', async () => {
     const input = draft(); input.endDate = '2027-07-13';
     input.destinations = Array.from({ length: 8 }, (_, position) => ({ ...input.destinations[0], position,
       arrivalDate: `2027-06-0${position + 1}`, departureDate: position === 7 ? input.endDate : `2027-06-0${position + 2}` }));
-    await check(await handler.fetch(trip(await token(), { draft: input }), env), 501, 'TRIP_WEATHER_NOT_IMPLEMENTED');
+    const response = await handler.fetch(trip(await token(), { draft: input }), env);
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.data.days).toHaveLength(42);
+    expect(payload.meta.partial).toBe(false);
   });
   it.each(['too many', 'gap', 'overlap', 'zero days', '43 days'])('preserves shared trip constraints: %s', async (kind) => {
     const input = draft();
@@ -133,30 +143,36 @@ describe('protected trip-weather boundary', () => {
     await check(response, 429, 'RATE_LIMITED'); expect(jwksFetch).not.toHaveBeenCalled();
   });
   it('enforces the default user limit across IPs and tokens, and isolates users', async () => {
-    for (let i = 0; i < 3; i += 1) expect((await handler.fetch(trip(await token(), undefined, { 'CF-Connecting-IP': `synthetic-${i}` }), env)).status).toBe(501);
+    for (let i = 0; i < 3; i += 1) expect((await handler.fetch(trip(await token(), undefined, { 'CF-Connecting-IP': `synthetic-${i}` }), env)).status).toBe(200);
     const response = await handler.fetch(trip(await token(), undefined, { 'CF-Connecting-IP': 'different' }), env);
     expect(response.headers.get('Retry-After')).toBe('60');
     await check(response, 429, 'RATE_LIMITED');
-    expect((await handler.fetch(trip(await token({ sub: otherUser })), env)).status).toBe(501);
+    expect((await handler.fetch(trip(await token({ sub: otherUser })), env)).status).toBe(200);
   });
   it('does not charge user limits based on forged subject claims', async () => {
     const forged = await token({}, await generateKeyPair('ES256'));
     for (let i = 0; i < 4; i += 1) expect((await handler.fetch(trip(forged), env)).status).toBe(401);
-    for (let i = 0; i < 3; i += 1) expect((await handler.fetch(trip(await token()), env)).status).toBe(501);
+    for (let i = 0; i < 3; i += 1) expect((await handler.fetch(trip(await token()), env)).status).toBe(200);
   });
   it('supports configured limits and minute resets', async () => {
     let clock = Date.now(); handler = createWorker({ now: () => clock, upstreamFetch, cache });
     env = { ...env, TRIP_WEATHER_IP_LIMIT: '2', TRIP_WEATHER_USER_LIMIT: '1' };
     const jwt = await token();
-    expect((await handler.fetch(trip(jwt), env)).status).toBe(501);
+    expect((await handler.fetch(trip(jwt), env)).status).toBe(200);
     await check(await handler.fetch(trip(jwt), env), 429, 'RATE_LIMITED');
     clock += 60000;
-    expect((await handler.fetch(trip(jwt), env)).status).toBe(501);
+    expect((await handler.fetch(trip(jwt), env)).status).toBe(200);
     await check(await handler.fetch(trip(null), env), 401, 'UNAUTHENTICATED');
     await check(await handler.fetch(trip(jwt), env), 429, 'RATE_LIMITED');
   });
   it.each([{ TRIP_WEATHER_IP_LIMIT: '0' }, { TRIP_WEATHER_USER_LIMIT: 'NaN' }, { TRIP_WEATHER_IP_LIMIT: '61' }])('fails closed for invalid limits %j', async (patch) => {
     await check(await handler.fetch(trip(await token()), { ...env, ...patch }), 503, 'SERVICE_UNCONFIGURED');
+  });
+  it('rejects fixture mode on a non-loopback host after authentication', async () => {
+    const req = trip(await token());
+    const response = await handler.fetch(new Request('https://remote.test/api/trip-weather', req), env);
+    await check(response, 503, 'MOCK_MODE_DENIED');
+    expect(cache.match).not.toHaveBeenCalled(); expect(cache.put).not.toHaveBeenCalled();
   });
   it.each(['GET', 'OPTIONS', 'PUT'])('rejects unsupported method %s before authentication', async (method) => {
     const response = await handler.fetch(request('/api/trip-weather', { method }), env);

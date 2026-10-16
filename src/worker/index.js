@@ -1,4 +1,5 @@
 import { normalizeCandidates } from '../shared/locations.js';
+import { retrieveTripWeather } from './tripWeather.js';
 import { createWeatherRetrieval } from './weather.js';
 import { verifySupabaseAccessToken } from './auth.js';
 import { validateInput, validateTripWeatherInput } from './validation.js';
@@ -11,7 +12,7 @@ const hour = 3600000;
 
 // Maps/concurrency controls are per isolate, bounded, and deliberately not a
 // worldwide allowance or persistent provider-account budget.
-// Conservative stub request limits, independent of future provider-work budgets.
+// Authenticated request limits are separate from per-request provider budgets.
 function tripLimit(value, fallback) {
   if (value === undefined) return fallback;
   if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value) || Number(value) > 60) {
@@ -51,6 +52,7 @@ export function createWorker(options = {}) {
 
   return {
     async fetch(request, env = {}) {
+      const startedAt = Date.now();
       const url = new URL(request.url);
       if (!url.pathname.startsWith('/api/') && url.pathname !== '/api') {
         if (!env.ASSETS) return jsonResponse({ error: { code: 'NOT_FOUND', message: 'Not found.' } }, 404);
@@ -74,8 +76,12 @@ export function createWorker(options = {}) {
           }
           const identity = await verifySupabaseAccessToken(bearer[1], env);
           rateLimit(request, '/api/trip-weather:user', tripLimit(env.TRIP_WEATHER_USER_LIMIT, 3), identity.userId, tripLimits);
-          await validateTripWeatherInput(request, url);
-          throw new ApiError('TRIP_WEATHER_NOT_IMPLEMENTED', 501, 'Trip weather aggregation is not available yet.');
+          const draft = await validateTripWeatherInput(request, url);
+          const mock = env.STAGE === 'local' && env.MOCK_PROVIDER === 'true'
+            && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+          if (env.MOCK_PROVIDER === 'true' && !mock) throw new ApiError('MOCK_MODE_DENIED', 503, 'Local fixture mode is unavailable here.');
+          return jsonResponse(await retrieveTripWeather(draft, env, { weather, signal: request.signal, startedAt, now,
+            origin: url.origin, cache: options.cache ?? globalThis.caches?.default, mock }));
         }
         rateLimit(request, url.pathname);
         const input = await validateInput(request, url.pathname, url);

@@ -2,7 +2,7 @@ import { abortable } from './weatherContext.js';
 import { ApiError, malformed } from './errors.js';
 import { readLimitedJSON } from './validation.js';
 import { mockProvider } from './fixtures.js';
-import { collectTimeline, TIMELINE_PATH, MAX_WEATHER_CALLS } from './timeline.js';
+import { collectTimeline, timelineDates, TIMELINE_PATH, MAX_WEATHER_CALLS } from './timeline.js';
 
 const paths = {
   '/api/geocode': 'geo/1.0/direct',
@@ -25,6 +25,12 @@ export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
     context?.check();
     if (mock) {
       context?.beginOperation();
+      if (route === '/api/weather' && input.endDate !== undefined) {
+        return { mockDays: timelineDates(input).map(date => {
+          const url = providerURL(route, { ...input, date }); url.searchParams.set('date', date);
+          return { date, raw: mockProvider(url) };
+        }) };
+      }
       const url = providerURL(route, input);
       if (route === '/api/weather') url.searchParams.set('date', input.date);
       return mockProvider(url);

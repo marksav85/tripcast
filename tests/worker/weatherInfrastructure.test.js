@@ -35,7 +35,7 @@ describe('shared provider accounting', () => {
     const run = provider(fetch); const range = { ...input, endDate: '2026-10-15' };
     for (let i = 0; i < 6; i += 1) await run('/api/weather', range, env, false, { context: budget });
     await expect(run('/api/weather', range, env, false, { context: budget })).rejects.toMatchObject({ code: 'REQUEST_BUDGET_EXHAUSTED' });
-    expect(fetch).toHaveBeenCalledTimes(24); expect(budget.usage).toMatchObject({ operations: 7, attempts: 24, active: 0 });
+    expect(fetch).toHaveBeenCalledTimes(24); expect(budget.usage).toMatchObject({ operations: 6, attempts: 24, active: 0 });
   });
   it('shares the two-request semaphore across independent provider instances', async () => {
     const budget = context(); const gates = []; let active = 0; let peak = 0;

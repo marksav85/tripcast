@@ -65,12 +65,8 @@ export async function validateInput(request, route, url) {
     || !['lat', 'lon', 'date'].every((key) => Object.hasOwn(input, key))
     || Object.keys(input).some((key) => !['lat', 'lon', 'date'].includes(key))
     || !validCoordinates(input.lat, input.lon) || !isCalendarDate(input.date)) throw invalid();
-  // Conservative application horizon; +500 days validated in Batch 4A,
-  // exact provider maximum remains unverified. Not a provider entitlement claim.
-  if (input.date < '1979-01-02') throw new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the supported weather range.');
-  const max = new Date();
-  max.setUTCDate(max.getUTCDate() + 540);
-  if (input.date > max.toISOString().slice(0, 10)) throw new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the provisional weather range.');
+  const horizonError = weatherDateError(input.date);
+  if (horizonError) throw horizonError;
   return input;
 }
 
@@ -95,4 +91,13 @@ export async function validateTripWeatherInput(request, url) {
   const result = validateTripDraft(input.draft);
   if (!result.valid) throw error;
   return result.trip;
+}
+
+// Provisional application boundary, not a claim about provider entitlement/coverage.
+export function weatherDateError(date, now = Date.now()) {
+  if (date < '1979-01-02') return new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the supported weather range.');
+  const max = new Date(now);
+  max.setUTCDate(max.getUTCDate() + 540);
+  return date > max.toISOString().slice(0, 10)
+    ? new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the provisional weather range.') : null;
 }

@@ -18,14 +18,14 @@ export async function abortable(signal, work) {
 }
 
 /** One aggregate request owns this context. Dispose in its finally block. */
-export function createWeatherContext({ signal, now = () => Date.now() } = {}) {
+export function createWeatherContext({ signal, now = () => Date.now(), startedAt = now() } = {}) {
   const controller = new AbortController();
-  const deadline = now() + WEATHER_LIMITS.deadlineMs;
+  const deadline = startedAt + WEATHER_LIMITS.deadlineMs;
   let operations = 0; let attempts = 0; let active = 0;
   const waiters = new Set();
   const expire = () => controller.abort(new ApiError('REQUEST_DEADLINE', 504, 'Weather request deadline was exceeded.'));
   const cancel = () => controller.abort(cancelled());
-  const timer = setTimeout(expire, WEATHER_LIMITS.deadlineMs);
+  const timer = setTimeout(expire, Math.max(0, deadline - now()));
   const parentAbort = () => { cancel(); clearTimeout(timer); };
   if (signal?.aborted) parentAbort(); else signal?.addEventListener('abort', parentAbort, { once: true });
   function check() {
@@ -39,6 +39,7 @@ export function createWeatherContext({ signal, now = () => Date.now() } = {}) {
     beginOperation() {
       check();
       if (operations >= WEATHER_LIMITS.operations) throw new ApiError('COLLECTOR_BUDGET_EXHAUSTED', 503, 'Weather collector budget was exhausted.');
+      if (attempts >= WEATHER_LIMITS.attempts) throw new ApiError('REQUEST_BUDGET_EXHAUSTED', 503, 'Weather request budget was exhausted.');
       operations += 1;
     },
     startAttempt() {
