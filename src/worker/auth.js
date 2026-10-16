@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, errors, jwtVerify } from 'jose';
 import { ApiError } from './errors.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,7 +39,13 @@ export async function verifySupabaseAccessToken(token, env = {}) {
   }
   try {
     if (typeof token !== 'string' || !token || token.length > 16384) throw new Error();
-    const { payload, protectedHeader } = await jwtVerify(token, cached.resolver, {
+    const resolver = cached.resolver;
+    const { payload, protectedHeader } = await jwtVerify(token, async (...args) => {
+      try { return await resolver(...args); } catch (error) {
+        if (error instanceof errors.JWKSNoMatchingKey) throw error;
+        throw new ApiError('AUTH_UNAVAILABLE', 503, 'Authentication is unavailable. Please try again later.');
+      }
+    }, {
       issuer: config.issuer, audience: config.audience, algorithms: config.algorithms,
       requiredClaims: ['exp', 'sub', 'role'],
     });
@@ -47,7 +53,8 @@ export async function verifySupabaseAccessToken(token, env = {}) {
       || typeof payload.sub !== 'string' || !uuid.test(payload.sub)
       || payload.role !== 'authenticated' || !Number.isFinite(payload.exp)) throw new Error();
     return { userId: payload.sub, role: 'authenticated', expiresAt: payload.exp };
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'AUTH_UNAVAILABLE') throw error;
     throw new ApiError('UNAUTHENTICATED', 401, 'A valid authenticated session is required.');
   }
 }

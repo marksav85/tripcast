@@ -1,5 +1,6 @@
 import { isCalendarDate } from '../shared/calendar.js';
 import { validCoordinates, validateLookup } from '../shared/locations.js';
+import { validateTripDraft } from '../shared/trip.js';
 import { ApiError, invalid } from './errors.js';
 
 export async function readLimitedJSON(stream, limit, error, options = {}) {
@@ -53,14 +54,7 @@ export async function validateInput(request, route, url) {
     return { lat, lon };
   }
   queryKeys(url, []);
-  if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
-    throw new ApiError('UNSUPPORTED_MEDIA_TYPE', 415, 'Use application/json.');
-  }
-  const large = new ApiError('BODY_TOO_LARGE', 413, 'Request body is too large or invalid.');
-  const size = request.headers.get('content-length');
-  if (size !== null && (!/^\d+$/.test(size) || Number(size) > 16384)) throw large;
-  // Bound both body size and slow body consumption; do not trust Content-Length.
-  const input = await readLimitedJSON(request.body, 16384, large, { parseError: invalid(), timeoutError: new ApiError('BODY_TIMEOUT', 408, 'Request body timed out.') });
+  const input = await readJSONBody(request);
   if (!input || typeof input !== 'object' || Array.isArray(input)
     || !['lat', 'lon', 'date'].every((key) => Object.hasOwn(input, key))
     || Object.keys(input).some((key) => !['lat', 'lon', 'date'].includes(key))
@@ -72,4 +66,27 @@ export async function validateInput(request, route, url) {
   max.setUTCDate(max.getUTCDate() + 540);
   if (input.date > max.toISOString().slice(0, 10)) throw new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the provisional weather range.');
   return input;
+}
+
+async function readJSONBody(request, parseError = invalid()) {
+  if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+    throw new ApiError('UNSUPPORTED_MEDIA_TYPE', 415, 'Use application/json.');
+  }
+  const large = new ApiError('BODY_TOO_LARGE', 413, 'Request body is too large or invalid.');
+  const size = request.headers.get('content-length');
+  if (size !== null && (!/^\d+$/.test(size) || Number(size) > 16384)) throw large;
+  // Bound both body size and slow body consumption; do not trust Content-Length.
+  return await readLimitedJSON(request.body, 16384, large, { parseError, timeoutError: new ApiError('BODY_TIMEOUT', 408, 'Request body timed out.') });
+}
+
+export async function validateTripWeatherInput(request, url) {
+  const error = new ApiError('INVALID_INPUT', 400, 'Check the trip draft.');
+  if (url.href.length > 2048) throw error;
+  queryKeys(url, []);
+  const input = await readJSONBody(request, error);
+  if (!input || typeof input !== 'object' || Array.isArray(input)
+    || !Object.hasOwn(input, 'draft') || Object.keys(input).length !== 1) throw error;
+  const result = validateTripDraft(input.draft);
+  if (!result.valid) throw error;
+  return result.trip;
 }

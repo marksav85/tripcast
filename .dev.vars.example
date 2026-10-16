@@ -9,3 +9,8 @@ SUPABASE_JWKS_URL=http://127.0.0.1:54321/auth/v1/.well-known/jwks.json
 SUPABASE_JWT_AUDIENCE=authenticated
 SUPABASE_JWT_ALGORITHMS=ES256
 # HTTP loopback is accepted only with STAGE=local (wrangler --env local).
+
+# Protected stub requests/minute; positive integers 1–60. Per-isolate best effort,
+# with separate IP and verified-user buckets; these are not provider-work budgets.
+TRIP_WEATHER_IP_LIMIT=10
+TRIP_WEATHER_USER_LIMIT=3

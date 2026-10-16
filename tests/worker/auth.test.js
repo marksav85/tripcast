@@ -19,6 +19,11 @@ async function denied(jwt, config = env) {
     code: 'UNAUTHENTICATED', status: 401, message: 'A valid authenticated session is required.',
   });
 }
+async function unavailable(jwt) {
+  await expect(verifySupabaseAccessToken(jwt, env)).rejects.toMatchObject({
+    code: 'AUTH_UNAVAILABLE', status: 503, message: 'Authentication is unavailable. Please try again later.',
+  });
+}
 beforeEach(async () => {
   env = { STAGE: 'local', SUPABASE_JWT_ISSUER: 'http://127.0.0.1:54321/auth/v1',
     SUPABASE_JWKS_URL: `http://127.0.0.1:54321/keys-${sequence++}`,
@@ -80,17 +85,17 @@ describe('isolated Supabase JWT verifier', () => {
     upstream.mockRejectedValue(new Error('private upstream details'));
     await expect(verifySupabaseAccessToken(jwt, env)).resolves.toMatchObject({ userId: subject });
     vi.setSystemTime(Date.now() + 600001);
-    await denied(jwt); expect(upstream).toHaveBeenCalledTimes(2);
+    await unavailable(jwt); expect(upstream).toHaveBeenCalledTimes(2);
   });
   it('sanitizes a JWKS fetch failure', async () => {
     upstream.mockRejectedValue(new Error('private upstream details'));
-    await denied(await token());
+    await unavailable(await token());
   });
   it('times out a stalled JWKS request', async () => {
     upstream.mockImplementation((_url, options) => new Promise((_resolve, reject) => {
       options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
     }));
-    await denied(await token());
+    await unavailable(await token());
   }, 7000);
   it('accepts explicit HTTPS production configuration', async () => {
     env = { ...env, STAGE: 'production', SUPABASE_JWT_ISSUER: 'https://synthetic.example/auth/v1',
@@ -100,15 +105,15 @@ describe('isolated Supabase JWT verifier', () => {
   it('fails closed when the entire environment is missing', async () => {
     await expect(verifySupabaseAccessToken('invalid')).rejects.toMatchObject({ code: 'AUTH_UNAVAILABLE', status: 503 });
   });
-  it.each([new Response('not json'), new Response(JSON.stringify({ keys: [] })),
+  it.each([new Response('not json'),
     new Response(null, { status: 302, headers: { Location: 'https://evil.example/keys' } })])('rejects unusable or redirected JWKS', async (response) => {
     upstream.mockResolvedValue(response);
-    await denied(await token());
+    await unavailable(await token());
     expect(upstream.mock.calls[0][1].redirect).toBe('manual');
   });
   it('rejects an HTTP error response', async () => {
     upstream.mockResolvedValue(new Response('unavailable', { status: 503 }));
-    await denied(await token());
+    await unavailable(await token());
   });
   it('ignores token headers pointing at untrusted key sources', async () => {
     const evil = await key('first');

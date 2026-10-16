@@ -2,12 +2,13 @@ import { normalizeCandidates } from '../shared/locations.js';
 import { normalizeDaySummary } from './normalize.js';
 import { normalizeTimelineDay } from './normalizeTimeline.js';
 import { forecastPolicy } from './timeline.js';
-import { validateInput } from './validation.js';
+import { verifySupabaseAccessToken } from './auth.js';
+import { validateInput, validateTripWeatherInput } from './validation.js';
 import { ApiError, malformed } from './errors.js';
 import { createProvider } from './provider.js';
 import { jsonResponse, SECURITY_HEADERS } from './security.js';
 
-const routes = { '/api/geocode': 'GET', '/api/reverse-geocode': 'GET', '/api/weather': 'POST' };
+const routes = { '/api/geocode': 'GET', '/api/reverse-geocode': 'GET', '/api/weather': 'POST', '/api/trip-weather': 'POST' };
 const hour = 3600000;
 
 // Maps/concurrency controls are per isolate, bounded, and deliberately not a
@@ -20,6 +21,15 @@ function refreshLabels(payload, now) {
   return { ...payload, data: { ...payload.data, model: { ...model, ...policy } } };
 }
 
+// Conservative stub request limits, independent of future provider-work budgets.
+function tripLimit(value, fallback) {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value) || Number(value) > 60) {
+    throw new ApiError('SERVICE_UNCONFIGURED', 503, 'Trip weather is unavailable. Please try again later.');
+  }
+  return Number(value);
+}
+
 export function createWorker(options = {}) {
   const now = options.now ?? (() => Date.now());
   const provider = createProvider({
@@ -28,23 +38,24 @@ export function createWorker(options = {}) {
     sleep: options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
   });
   const limits = new Map();
+  const tripLimits = new Map();
   const inFlight = new Map();
 
-  function rateLimit(request, route) {
-    const identity = request.headers.get('CF-Connecting-IP') ?? 'local';
+  function rateLimit(request, route, maximum = route === '/api/weather' ? 5 : 10,
+    identity = request.headers.get('CF-Connecting-IP') ?? 'local', buckets = limits) {
     const key = `${route}:${identity}`;
     const minute = Math.floor(now() / 60000);
-    let entry = limits.get(key);
+    let entry = buckets.get(key);
     if (!entry || entry.minute !== minute) {
-      if (!entry && limits.size >= 2048) {
-        for (const [oldKey, old] of limits) if (old.minute !== minute) limits.delete(oldKey);
-        if (limits.size >= 2048) throw new ApiError('RATE_LIMITED', 429, 'Too many requests. Please wait before retrying.', 60);
+      if (!entry && buckets.size >= 2048) {
+        for (const [oldKey, old] of buckets) if (old.minute !== minute) buckets.delete(oldKey);
+        if (buckets.size >= 2048) throw new ApiError('RATE_LIMITED', 429, 'Too many requests. Please wait before retrying.', 60);
       }
       entry = { minute, count: 0 };
-      limits.set(key, entry);
+      buckets.set(key, entry);
     }
     entry.count += 1;
-    if (entry.count > (route === '/api/weather' ? 5 : 10)) throw new ApiError('RATE_LIMITED', 429, 'Too many requests. Please wait before retrying.', 60);
+    if (entry.count > maximum) throw new ApiError('RATE_LIMITED', 429, 'Too many requests. Please wait before retrying.', 60);
   }
 
   return {
@@ -62,6 +73,19 @@ export function createWorker(options = {}) {
         if (request.method !== routes[url.pathname]) return jsonResponse({ error: { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' } }, 405, { Allow: routes[url.pathname] });
         const origin = request.headers.get('Origin');
         if (origin && origin !== url.origin) throw new ApiError('ORIGIN_DENIED', 403, 'Cross-origin API requests are not allowed.');
+        if (url.pathname === '/api/trip-weather') {
+          const ipLimit = tripLimit(env.TRIP_WEATHER_IP_LIMIT, 10);
+          rateLimit(request, '/api/trip-weather:ip', ipLimit, undefined, tripLimits);
+          const authorization = request.headers.get('Authorization');
+          const bearer = authorization?.match(/^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i);
+          if (!bearer || bearer[1].length > 16384) {
+            throw new ApiError('UNAUTHENTICATED', 401, 'A valid authenticated session is required.');
+          }
+          const identity = await verifySupabaseAccessToken(bearer[1], env);
+          rateLimit(request, '/api/trip-weather:user', tripLimit(env.TRIP_WEATHER_USER_LIMIT, 3), identity.userId, tripLimits);
+          await validateTripWeatherInput(request, url);
+          throw new ApiError('TRIP_WEATHER_NOT_IMPLEMENTED', 501, 'Trip weather aggregation is not available yet.');
+        }
         rateLimit(request, url.pathname);
         const input = await validateInput(request, url.pathname, url);
         if (env.OPENWEATHER_API_KEY && Object.values(input).some((value) => typeof value === 'string' && value.includes(env.OPENWEATHER_API_KEY))) {
