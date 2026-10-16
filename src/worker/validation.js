@@ -9,12 +9,18 @@ export async function readLimitedJSON(stream, limit, error, options = {}) {
   const chunks = [];
   let length = 0;
   let timer;
+  let onAbort;
+  const stopped = new Promise((resolve, reject) => {
+    onAbort = () => reject(options.signal.reason);
+    if (options.signal?.aborted) onAbort();
+    else options.signal?.addEventListener('abort', onAbort, { once: true });
+  });
   const timeout = new Promise((resolve, reject) => {
     timer = setTimeout(() => reject(options.timeoutError ?? error), 3000);
   });
   try {
     while (true) {
-      const { value, done } = await Promise.race([reader.read(), timeout]);
+      const { value, done } = await Promise.race([reader.read(), timeout, stopped]);
       if (done) break;
       length += value.byteLength;
       if (length > limit) { void reader.cancel().catch(() => {}); throw error; }
@@ -25,7 +31,7 @@ export async function readLimitedJSON(stream, limit, error, options = {}) {
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   } catch (caught) { throw caught instanceof ApiError ? caught : options.parseError ?? error; }
-  finally { clearTimeout(timer); void reader.cancel().catch(() => {}); reader.releaseLock(); }
+  finally { options.signal?.removeEventListener('abort', onAbort); clearTimeout(timer); void reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
 function queryKeys(url, allowed) {

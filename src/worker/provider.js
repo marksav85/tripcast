@@ -1,3 +1,4 @@
+import { abortable } from './weatherContext.js';
 import { ApiError, malformed } from './errors.js';
 import { readLimitedJSON } from './validation.js';
 import { mockProvider } from './fixtures.js';
@@ -19,8 +20,11 @@ export function providerURL(route, input) {
 export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
   let active = 0;
   let cooldownUntil = 0;
-  return async (route, input, env, mock) => {
+  return async (route, input, env, mock, options = {}) => {
+    const context = options.context;
+    context?.check();
     if (mock) {
+      context?.beginOperation();
       const url = providerURL(route, input);
       if (route === '/api/weather') url.searchParams.set('date', input.date);
       return mockProvider(url);
@@ -30,8 +34,14 @@ export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
     }
     if (now() < cooldownUntil) throw new ApiError('UPSTREAM_LIMIT', 503, 'Weather service quota is temporarily unavailable.', 60);
     if (active >= 3) throw new ApiError('SERVICE_BUSY', 503, 'Weather service is busy. Please retry shortly.', 1);
+    context?.beginOperation();
     active += 1;
+    const operation = context ? new AbortController() : null;
+    const stopOperation = () => operation.abort(context.signal.reason);
+    context?.signal.addEventListener('abort', stopOperation, { once: true });
+    let operationTimer;
     try {
+      if (operation) operationTimer = setTimeout(() => operation.abort(new ApiError('UPSTREAM_TIMEOUT', 504, 'Weather service timed out. Please retry.')), Math.min(18000, context.remaining()));
       let calls = 0;
       const deadline = Date.now() + 18000;
       async function fetchPage(start) {
@@ -40,15 +50,23 @@ export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
         url.searchParams.set('appid', env.OPENWEATHER_API_KEY);
         for (let attempt = 0; attempt < 2; attempt += 1) {
           if (calls >= (route === '/api/weather' ? MAX_WEATHER_CALLS : 2)) throw malformed();
-          const remaining = deadline - Date.now();
-          if (remaining <= 0) throw new ApiError('UPSTREAM_TIMEOUT', 504, 'Weather service timed out. Please retry.');
-          calls += 1;
+          context?.check();
+          operation?.signal.throwIfAborted();
+          const release = context ? await context.acquire(operation.signal) : () => {};
           const controller = new AbortController();
           let timer;
           let timedOut = false;
+          const stopAttempt = () => controller.abort(operation.signal.reason);
+          operation?.signal.addEventListener('abort', stopAttempt, { once: true });
           try {
-            const work = (async () => {
+            const remaining = Math.min(deadline - Date.now(), context ? context.remaining() : Infinity);
+            if (remaining <= 0) throw new ApiError('UPSTREAM_TIMEOUT', 504, 'Weather service timed out. Please retry.');
+            operation?.signal.throwIfAborted();
+            const work = abortable(controller.signal, async () => {
+              context?.startAttempt();
+              calls += 1;
               const response = await upstreamFetch(url.toString(), { redirect: 'error', signal: controller.signal });
+              controller.signal.throwIfAborted();
               if (response.status === 429) {
                 const seconds = Math.min(300, Math.max(60, Number(response.headers.get('retry-after')) || 60));
                 cooldownUntil = now() + seconds * 1000;
@@ -57,8 +75,8 @@ export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
               if ([401, 403].includes(response.status)) throw new ApiError('UPSTREAM_ACCESS', 503, 'Weather service access is unavailable.');
               if (response.status >= 500) throw new ApiError('UPSTREAM_FAILURE', 502, 'Weather service failed. Please retry.');
               if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw malformed();
-              return readLimitedJSON(response.body, 262144, malformed(), { timeoutError: new ApiError('UPSTREAM_TIMEOUT', 504, 'Weather service timed out. Please retry.') });
-            })();
+              return readLimitedJSON(response.body, 262144, malformed(), { timeoutError: new ApiError('UPSTREAM_TIMEOUT', 504, 'Weather service timed out. Please retry.'), signal: controller.signal });
+            });
             const timeout = new Promise((resolve, reject) => {
               timer = setTimeout(() => {
                 timedOut = true;
@@ -70,14 +88,20 @@ export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
           } catch (error) {
             // Abort a rejected/oversized response too; never return raw exceptions.
             controller.abort();
-            const safe = timedOut ? new ApiError('UPSTREAM_TIMEOUT', 504, 'Weather service timed out. Please retry.')
+            const safe = operation?.signal.aborted ? operation.signal.reason : timedOut ? new ApiError('UPSTREAM_TIMEOUT', 504, 'Weather service timed out. Please retry.')
               : error instanceof ApiError ? error : new ApiError('UPSTREAM_FAILURE', 502, 'Weather service failed. Please retry.');
-            if (attempt === 0 && safe.code === 'UPSTREAM_FAILURE') { await sleep(250); continue; }
+            if (attempt === 0 && safe.code === 'UPSTREAM_FAILURE') { release(); await abortable(operation?.signal, () => sleep(250)); continue; }
             throw safe;
-          } finally { clearTimeout(timer); }
+          } finally {
+            clearTimeout(timer); release();
+            operation?.signal.removeEventListener('abort', stopAttempt);
+          }
         }
       }
-      return route === '/api/weather' ? await collectTimeline(input, fetchPage) : await fetchPage();
-    } finally { active -= 1; }
+      return route === '/api/weather' ? await collectTimeline(input, fetchPage, { partial: options.partial }) : await fetchPage();
+    } finally {
+      active -= 1; clearTimeout(operationTimer);
+      context?.signal.removeEventListener('abort', stopOperation);
+    }
   };
 }

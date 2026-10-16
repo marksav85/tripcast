@@ -64,28 +64,41 @@ export function validateTimelinePage(raw, input) {
 
 // Internal bounded range collector, not an expanded public API. At most ten
 // requested dates, two pages. Retries share the provider's four-call budget.
-export async function collectTimeline(input, fetchPage) {
+export function timelineDates(input) {
   const endDate = input.endDate ?? input.date;
   const count = (stamp(endDate) - stamp(input.date)) / dayMs + 1;
   if (!isCalendarDate(input.date) || !isCalendarDate(endDate) || count < 1 || count > 10) throw malformed();
-  const wanted = Array.from({ length: count }, (_, i) => new Date(stamp(input.date) + i * dayMs).toISOString().slice(0, 10));
+  return Array.from({ length: count }, (_, i) => new Date(stamp(input.date) + i * dayMs).toISOString().slice(0, 10));
+}
+
+export async function collectTimeline(input, fetchPage, { partial = false } = {}) {
+  const wanted = timelineDates(input);
+  const endDate = wanted.at(-1);
   const selected = new Map();
   let start = stamp(input.date) / 1000;
   let timeZone;
-  for (let page = 0; page < MAX_TIMELINE_PAGES; page += 1) {
-    const parsed = validateTimelinePage(await fetchPage(start), input);
-    if (timeZone && parsed.timeZone !== timeZone) throw malformed();
-    timeZone = parsed.timeZone;
-    for (const { date, record } of parsed.days) {
-      if (date >= input.date && date <= endDate && !selected.has(date)) selected.set(date, record);
+  let failure;
+  try {
+    for (let page = 0; page < MAX_TIMELINE_PAGES; page += 1) {
+      const parsed = validateTimelinePage(await fetchPage(start), input);
+      if (timeZone && parsed.timeZone !== timeZone) throw malformed();
+      timeZone = parsed.timeZone;
+      for (const { date, record } of parsed.days) {
+        if (date >= input.date && date <= endDate && !selected.has(date)) selected.set(date, record);
+      }
+      if (wanted.every((date) => selected.has(date))) break;
+      if (parsed.next === null) break;
+      // Advance only within a small window around the requested interval. Guard
+      // looping, backwards, empty and arbitrary distant continuation pages.
+      if (!parsed.days.length || parsed.next <= start || parsed.next > stamp(endDate) / 1000 + 11 * 86400) throw malformed();
+      if (page + 1 === MAX_TIMELINE_PAGES) throw new ApiError('UPSTREAM_INVALID', 502, 'Weather coverage exceeded the request limit.');
+      start = parsed.next;
     }
-    if (wanted.every((date) => selected.has(date))) break;
-    if (parsed.next === null) break;
-    // Advance only within a small window around the requested interval. Guard
-    // looping, backwards, empty and arbitrary distant continuation pages.
-    if (!parsed.days.length || parsed.next <= start || parsed.next > stamp(endDate) / 1000 + 11 * 86400) throw malformed();
-    if (page + 1 === MAX_TIMELINE_PAGES) throw new ApiError('UPSTREAM_INVALID', 502, 'Weather coverage exceeded the request limit.');
-    start = parsed.next;
+  } catch (error) {
+    if (!partial) throw error;
+    failure = error instanceof ApiError ? error : new ApiError('UPSTREAM_FAILURE', 502, 'Weather service failed. Please retry.');
   }
-  return { timezone: timeZone, days: wanted.map((date) => ({ date, record: selected.get(date) ?? null })) };
+  const result = { timezone: timeZone, days: wanted.map((date) => ({ date, record: selected.get(date) ?? null,
+    ...(partial && failure && !selected.has(date) ? { error: failure } : {}) })) };
+  return partial ? { ...result, complete: !failure, error: failure ?? null } : result;
 }
