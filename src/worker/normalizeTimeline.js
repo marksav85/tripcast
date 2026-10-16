@@ -22,11 +22,23 @@ export function normalizeTimelineDay(timeline, date, now) {
   const model = {
     date, source: 'OpenWeather One Call 4.0', timeZone: timeline.timezone, ...policy,
     lowC, highC, condition,
+    temperatureC: {
+      morning: numberIn(raw.temp?.morn, -273.15, 1000), day: numberIn(raw.temp?.day, -273.15, 1000),
+      evening: numberIn(raw.temp?.eve, -273.15, 1000), night: numberIn(raw.temp?.night, -273.15, 1000),
+      min: lowC, max: highC,
+    },
+    feelsLikeC: {
+      morning: numberIn(raw.feels_like?.morn, -273.15, 1000), day: numberIn(raw.feels_like?.day, -273.15, 1000),
+      evening: numberIn(raw.feels_like?.eve, -273.15, 1000), night: numberIn(raw.feels_like?.night, -273.15, 1000),
+    },
+    pressureHpa: numberIn(raw.pressure, 0, 2000), dewPointC: numberIn(raw.dew_point, -273.15, 1000),
+    providerRainValue: numberIn(raw.rain, 0, Number.MAX_SAFE_INTEGER),
     cloudPercent: numberIn(raw.clouds, 0, 100), humidityPercent: numberIn(raw.humidity, 0, 100),
     windSpeedMs: numberIn(raw.wind_speed, 0, 1000), windDirectionDeg: numberIn(raw.wind_deg, 0, 360),
     uvIndex: numberIn(raw.uvi, 0, 1000), precipitationProbability: numberIn(raw.pop, 0, 1),
     precipitationMm: null, // Scalar rain/snow aggregation is unverified; never a daily total.
     semantics: { cloud: 'provider daily value', precipitation: 'daily aggregation unverified',
+      providerRainValue: 'provider scalar; units and aggregation window unverified',
       precipitationProbability: 'fraction 0–1', wind: 'metres per second', forecast: policy.forecastPolicy },
   };
   return { model, available: condition !== null || [lowC, highC, model.cloudPercent, model.humidityPercent,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import near from './fixtures/paris-near.json';
+import midnight from './fixtures/paris-midnight.json';
 import far from './fixtures/paris-180.json';
 import nextPage from './fixtures/paris-next.json';
 import leap from './fixtures/paris-500.json';
@@ -35,6 +36,65 @@ describe('Batch 4A representative records', () => {
       condition: { id: 500 }, precipitationMm: null, precipitationProbability: null, uvIndex: null,
       forecastType: 'long-range', forecastLabel: 'Long-range estimate' });
     expect(result.model).not.toHaveProperty('rain');
+  });
+  it.each([
+    ['near-term', near, '2026-10-14'], ['long-range', far, '2027-04-12'],
+    ['retained previous-day probe', midnight, '2026-10-13'],
+  ])('preserves exact provider measurements from %s', async (_label, fixture, date) => {
+    const raw = fixture.data[0];
+    const result = await model(fixture, { ...paris, date });
+    expect(result.model.temperatureC).toEqual({ morning: raw.temp.morn, day: raw.temp.day,
+      evening: raw.temp.eve, night: raw.temp.night, min: raw.temp.min, max: raw.temp.max });
+    expect(result.model.feelsLikeC).toEqual({ morning: raw.feels_like.morn, day: raw.feels_like.day,
+      evening: raw.feels_like.eve, night: raw.feels_like.night });
+    expect(result.model.lowC).toBe(raw.temp.min); expect(result.model.highC).toBe(raw.temp.max);
+    expect(result.model.pressureHpa).toBe(raw.pressure); expect(result.model.dewPointC).toBe(raw.dew_point);
+    expect(result.model.providerRainValue).toBe(raw.rain ?? null);
+    expect(result.model.precipitationMm).toBeNull();
+  });
+  it('retains long-range rain independently of unavailable UV and probability', async () => {
+    const { model: result } = await model(far, { ...paris, date: '2027-04-12' });
+    expect(result).toMatchObject({ providerRainValue: 0.19, uvIndex: null,
+      precipitationProbability: null, precipitationMm: null });
+  });
+  it('keeps missing optional measurements explicit without inferring temperatures', async () => {
+    const { model: result, available } = await model(page(paris.date, 'UTC', { temp: { min: 2, max: 8 } }));
+    expect(available).toBe(true);
+    expect(result.temperatureC).toEqual({ morning: null, day: null, evening: null, night: null, min: 2, max: 8 });
+    expect(result.feelsLikeC).toEqual({ morning: null, day: null, evening: null, night: null });
+    expect(result.pressureHpa).toBeNull(); expect(result.dewPointC).toBeNull(); expect(result.providerRainValue).toBeNull();
+    const missing = await model({ ...page(paris.date), data: [] });
+    expect(Object.values(missing.model.temperatureC).every(value => value === null)).toBe(true);
+    expect(missing.available).toBe(false);
+  });
+  it('preserves zeros in all additional measurements', async () => {
+    const { model: result } = await model(page(paris.date, 'UTC', {
+      temp: { morn: 0, day: 0, eve: 0, night: 0, min: 0, max: 0 },
+      feels_like: { morn: 0, day: 0, eve: 0, night: 0 }, pressure: 0, dew_point: 0, rain: 0,
+    }));
+    expect(Object.values(result.temperatureC)).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(Object.values(result.feelsLikeC)).toEqual([0, 0, 0, 0]);
+    expect(result).toMatchObject({ pressureHpa: 0, dewPointC: 0, providerRainValue: 0, precipitationMm: null });
+  });
+  it.each([undefined, null, '12', false, {}, [], NaN, Infinity, -Infinity, -274, 1001])('nulls invalid temperatures without throwing (%#)', async (value) => {
+    const { model: result } = await model(page(paris.date, 'UTC', {
+      temp: { morn: value, day: value, eve: value, night: value, min: value, max: value },
+      feels_like: { morn: value, day: value, eve: value, night: value }, dew_point: value,
+    }));
+    expect(Object.values(result.temperatureC).every(item => item === null)).toBe(true);
+    expect(Object.values(result.feelsLikeC).every(item => item === null)).toBe(true);
+    expect(result.dewPointC).toBeNull();
+  });
+  it.each(['1', NaN, Infinity, -1, null, {}, []])('nulls invalid pressure and rain (%#)', async (value) => {
+    const { model: result } = await model(page(paris.date, 'UTC', { pressure: value, rain: value }));
+    expect(result.pressureHpa).toBeNull(); expect(result.providerRainValue).toBeNull();
+  });
+  it('keeps the existing availability rule and reversed-extrema handling', async () => {
+    const { model: result, available } = await model(page(paris.date, 'UTC', {
+      temp: { min: 20, max: 5, morn: 10 }, feels_like: { day: 11 }, pressure: 1010, dew_point: 3, rain: 1,
+    }));
+    expect(result.temperatureC).toEqual({ morning: 10, day: null, evening: null, night: null, min: null, max: null });
+    expect(result.lowC).toBeNull(); expect(result.highC).toBeNull(); expect(available).toBe(false);
   });
   it('retains valid zeros for every optional measurement', async () => {
     const result = await model(page(paris.date, 'UTC', { temp: { min: 0, max: 0 }, clouds: 0,
@@ -189,8 +249,35 @@ describe('malformed envelopes, cache and safety', () => {
     for (const [key, value] of cache.entries) {
       expect(key).toContain('provider-4'); expect(key).not.toContain('appid');
       expect(await value.clone().text()).not.toContain(env.OPENWEATHER_API_KEY);
-      expect(await value.clone().text()).not.toContain('rain');
+      const stored = await value.clone().json();
+      expect(stored.payload.data.model).not.toHaveProperty('rain');
+      expect(stored.payload.data.model).toHaveProperty('providerRainValue');
     }
+  });
+  it('ignores older live models while preserving fixture and geocoding namespaces', async () => {
+    const cache = memoryCache();
+    const oldKey = new Request('http://localhost/__tripcast-cache/v2/provider-4/weather?date=2026-10-14&lat=48.8566&lon=2.3522&units=metric&lang=en');
+    await cache.put(oldKey, rawResponse({ payload: { data: { available: true, model: { date: paris.date,
+      timeZone: 'Europe/Paris', lowC: -99 } }, meta: { fetchedAt: new Date(now).toISOString() } },
+    near: true, freshUntil: now + 3600000, staleUntil: now + 86400000 }));
+    const upstreamFetch = vi.fn(async () => rawResponse(near));
+    const handler = createWorker({ now: () => now, cache, upstreamFetch });
+    const first = await (await handler.fetch(weather(paris), env)).json();
+    expect(first).toMatchObject({ data: { available: true, model: { lowC: 12.95, highC: 20.84,
+      temperatureC: { morning: 13.34 }, feelsLikeC: { day: 17.1 } } }, meta: { cached: false } });
+    const second = await (await handler.fetch(weather(paris), env)).json();
+    expect(second.data).toEqual(first.data); expect(second.meta.cached).toBe(true);
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    await handler.fetch(weather(paris), mockEnv);
+    await handler.fetch(new Request('http://localhost/api/geocode?q=Paris'), mockEnv);
+    const keys = [...cache.entries.keys()];
+    expect(keys).toContain(oldKey.url);
+    expect(keys).toContain(oldKey.url.replace('/v2/', '/v3/'));
+    expect(keys.some(key => key.includes('/v2/fixture/weather?'))).toBe(true);
+    expect(keys.some(key => key.includes('/v2/fixture/geocode?'))).toBe(true);
+    const stored = await cache.entries.get(oldKey.url.replace('/v2/', '/v3/')).clone().json();
+    expect(stored.freshUntil).toBe(now + 3 * 3600000);
+    expect(stored.staleUntil).toBe(now + 24 * 3600000);
   });
   it('rejects a secret in weather condition text before caching', async () => {
     const raw = copy(near); raw.data[0].weather[0].description = env.OPENWEATHER_API_KEY;

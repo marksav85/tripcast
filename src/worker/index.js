@@ -95,7 +95,9 @@ export function createWorker(options = {}) {
           && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
         if (env.MOCK_PROVIDER === 'true' && !mock) throw new ApiError('MOCK_MODE_DENIED', 503, 'Local fixture mode is unavailable here.');
         const cache = options.cache ?? globalThis.caches?.default;
-        const cacheKey = new Request(`${url.origin}/__tripcast-cache/v2/${mock ? 'fixture' : 'provider-4'}/${url.pathname.slice(5)}?${new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)]).sort())}&units=metric&lang=en`);
+        // Version only live weather models; Cache API entries can survive isolate restarts.
+        const cacheVersion = !mock && url.pathname === '/api/weather' ? 'v3' : 'v2';
+        const cacheKey = new Request(`${url.origin}/__tripcast-cache/${cacheVersion}/${mock ? 'fixture' : 'provider-4'}/${url.pathname.slice(5)}?${new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)]).sort())}&units=metric&lang=en`);
         const today = new Date(now()).toISOString().slice(0, 10);
         const dayDistance = input.date ? (Date.parse(`${input.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / (24 * hour) : 0;
         let near = dayDistance <= 8;
