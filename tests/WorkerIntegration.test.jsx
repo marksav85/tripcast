@@ -1,3 +1,4 @@
+import { AuthContext } from '../src/client/auth/context.js';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import App from '../src/client/App';
@@ -11,7 +12,7 @@ function wireWorker(options = {}, env = { STAGE: 'local', MOCK_PROVIDER: 'true' 
   const upstreamFetch = options.upstreamFetch ?? vi.fn(() => { throw new Error('Unexpected real provider request'); });
   const handler = createWorker({ upstreamFetch, ...options });
   fetchMock.mockImplementation((url, init) => handler.fetch(new Request(`http://localhost${url}`, init), env));
-  render(<WeatherProvider><App /></WeatherProvider>);
+  render(<AuthContext.Provider value={{ isAuthenticated: false }}><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
   return upstreamFetch;
 }
 function lookup(city = 'Berlin') {

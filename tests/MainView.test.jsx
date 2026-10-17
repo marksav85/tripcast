@@ -1,3 +1,4 @@
+import { AuthContext } from '../src/client/auth/context.js';
 import { fetchMock, apiResponse } from './fixtures/api';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
@@ -12,7 +13,7 @@ it.each([false, true])('scrolls on successful result with reduced motion=%s', as
   HTMLElement.prototype.scrollIntoView = scroll;
   try {
     fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
-    render(<WeatherProvider><App /></WeatherProvider>);
+    render(<AuthContext.Provider value={{ isAuthenticated: false }}><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
     fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
@@ -34,7 +35,7 @@ it('reacts to a reduced-motion preference change during loading', async () => {
     removeEventListener: (type, callback) => remove(callback),
   }));
   const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
-  const app = render(<WeatherProvider><App /></WeatherProvider>);
+  const app = render(<AuthContext.Provider value={{ isAuthenticated: false }}><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
   fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
   fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
   fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
