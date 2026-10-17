@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/context.js';
 import { loadMyTrip, saveMyTrip, deleteMyTrip } from '../../api/trips.js';
 import TripEditor from './TripEditor.jsx';
+import TripWeatherPreview from './TripWeatherPreview.jsx';
 
 // Account-keyed mounting also hides the previous account's draft during render.
 export default function AuthenticatedTripEditor({ onClose }) {
@@ -11,6 +12,7 @@ export default function AuthenticatedTripEditor({ onClose }) {
 }
 
 function TripSession({ onClose }) {
+  const auth = useAuth();
   const [state, setState] = useState({ loaded: false, saved: null, version: 0 });
   const [busy, setBusy] = useState('loading');
   const [message, setMessage] = useState('Loading saved trip…');
@@ -87,6 +89,7 @@ function TripSession({ onClose }) {
         submitLabel="Save Trip" submitMessage="" submitDisabled={blocked} />
       {state.saved && <button type="button" disabled={blocked} onClick={remove}>Delete Trip</button>}
     </fieldset>}
+    {state.saved && <TripWeatherPreview key={state.version} saved={state.saved} ownerId={auth.user.id} disabled={Boolean(busy) || blocked} />}
     {!busy && (error || !state.loaded) && <button type="button" onClick={() => {
       if (!state.loaded || window.confirm('Reload the saved trip? Your unsaved changes will be discarded.')) load();
     }}>{state.loaded ? 'Reload saved trip' : 'Retry loading trip'}</button>}
