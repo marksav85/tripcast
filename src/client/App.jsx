@@ -7,7 +7,7 @@ function App() {
   const auth = useAuth();
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
+      <Header compact={auth.isAuthenticated} />
       {auth.isAuthenticated
         ? <TripDashboard key={auth.user.id} ownerId={auth.user.id} publicWeather={<MainView />} />
         : <main><MainView /></main>}

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import useSavedTrip from '../../hooks/useSavedTrip.js';
 import useTripWeather from '../../hooks/useTripWeather.js';
-import { addCalendarDays, coveredDayCount } from '../../../shared/trip.js';
+import { coveredDayCount } from '../../../shared/trip.js';
 import { formatCalendarDate } from '../../../shared/calendar.js';
 import TripEditor from './TripEditor.jsx';
-import TripWeatherResults from './TripWeatherResults.jsx';
+import TripWeatherResults, { TripWeatherActions } from './TripWeatherResults.jsx';
 
 const buttonClass = 'border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-50';
 
@@ -41,7 +41,7 @@ export default function TripDashboard({ ownerId, publicWeather }) {
       <button type="button" className={buttonClass} aria-current={view !== 'public' ? 'page' : undefined} disabled={mutationPending} onClick={() => navigate('dashboard')}>My Trip</button>
     </nav>
     <div hidden={view !== 'public'} ref={publicRegion} tabIndex={-1} aria-label="Single-city weather">{publicWeather}</div>
-    <main hidden={view === 'public'} className="w-full max-w-5xl mx-auto p-4 md:p-6 space-y-4 break-words">
+    <main hidden={view === 'public'} className={view === 'dashboard' ? 'trip-dashboard' : 'w-full max-w-5xl mx-auto p-4 md:p-6 space-y-4 break-words'}>
       <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>
       <p role={error ? 'alert' : 'status'}>{message}</p>
       {!busy && (error || !loaded) && <button type="button" className={buttonClass} onClick={reload}>{loaded ? 'Reload saved trip' : 'Retry loading trip'}</button>}
@@ -52,27 +52,30 @@ export default function TripDashboard({ ownerId, publicWeather }) {
         </fieldset>
         <button type="button" className={buttonClass} disabled={Boolean(busy)} onClick={() => navigate('dashboard')}>Back to My Trip</button>
       </>}
-      {loaded && view === 'dashboard' && (!saved ? <section aria-label="No saved trip" className="space-y-3">
+      {loaded && view === 'dashboard' && (!saved ? <section aria-label="No saved trip" className="trip-empty space-y-3">
         <h3 className="text-xl font-semibold">Plan your first trip</h3>
         <p>You can save one trip at a time, with up to eight destinations and 42 weather days.</p>
         <button type="button" className={buttonClass} disabled={Boolean(busy) || blocked} onClick={() => setView('editor')}>Create Trip</button>
       </section> : <>
-        <section aria-label="Saved trip overview" className="space-y-3">
-          <h3 className="text-xl font-semibold">{saved.draft.title}</h3>
+        <section aria-label="Saved trip overview" className="trip-overview">
+          <p className="trip-eyebrow">Travel itinerary weather</p>
+          <h3 className="trip-title">{saved.draft.title}</h3>
           <p>Arrival: {formatCalendarDate(saved.draft.startDate)} · Departure: {formatCalendarDate(saved.draft.endDate)}</p>
           <p>{coveredDayCount(saved.draft.startDate, saved.draft.endDate)} covered days · {saved.draft.destinations.length} destinations. Departure is excluded from weather days.</p>
-          <ol className="list-decimal pl-6 space-y-2">{saved.draft.destinations.map(destination => <li key={destination.position}>
-            <span className="font-semibold">{destination.cityName}, {destination.countryCode}</span>
-            <p>Weather dates: {formatCalendarDate(destination.arrivalDate)} – {formatCalendarDate(addCalendarDays(destination.departureDate, -1))}</p>
-          </li>)}</ol>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" className={buttonClass} disabled={Boolean(busy)} onClick={() => setView('editor')}>Edit Trip</button>
-            <button type="button" className={buttonClass} disabled={Boolean(busy) || blocked} onClick={() => {
+          <div className="trip-actions">
+            <button type="button" className="trip-button" disabled={Boolean(busy)} onClick={() => setView('editor')}>Edit Trip</button>
+            <button type="button" className="trip-button trip-button-delete" disabled={Boolean(busy) || blocked} onClick={() => {
               if (window.confirm('Delete this saved trip? This also discards local edits.')) void remove();
             }}>Delete Trip</button>
+            <TripWeatherActions weather={weather} disabled={Boolean(busy) || blocked} />
           </div>
         </section>
-        <TripWeatherResults saved={saved} weather={weather} disabled={Boolean(busy) || blocked} />
+        <div className="trip-legend" aria-label="Forecast categories">
+          <span className="trip-category trip-category-standard">Standard forecast</span>
+          <span className="trip-category trip-category-long">Long-range estimate</span>
+          <p>TripCast’s provisional eight-day policy; long-range estimates are less certain. These labels are not provider confidence ratings.</p>
+        </div>
+        <TripWeatherResults saved={saved} weather={weather} />
       </>)}
     </main>
   </>;

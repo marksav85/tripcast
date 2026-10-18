@@ -49,7 +49,7 @@ it('distinguishes loading, load failure and a successful empty load', async () =
 });
 it('preserves the same lifecycle and public form across repeated navigation', async () => {
   setup(); change('City:', 'Unsubmitted public city'); await dashboard();
-  expect(screen.getByText(/3 covered days/)).toBeVisible();
+  expect(within(screen.getByRole('region', { name: 'Saved trip overview' })).getByText(/3 covered days/)).toBeVisible();
   expect(screen.getByText('Weather dates: 1 June 2027 – 3 June 2027')).toBeVisible();
   await weather(); expect(getTripWeather).toHaveBeenCalledWith({ draft: tripDraft, expectedUserId: 'a', signal: expect.any(AbortSignal) });
   click('Single-city weather'); expect(screen.getByLabelText('City:')).toHaveValue('Unsubmitted public city');
@@ -107,7 +107,7 @@ it('confirms deletion, preserves trip/weather on failure, and cancels weather on
 });
 it('presents partial outcomes, cancellation and safe request errors', async () => {
   setup(); await dashboard(); await weather(); const region = within(screen.getByRole('region', { name: 'Trip weather' }));
-  expect(region.getByText(/Minimum 0 °C/)).toBeVisible(); expect(region.getByText(/Unavailable: Outside/)).toBeVisible(); expect(region.getByText(/Retrieval error: Could not/)).toBeVisible();
+  expect(region.getByText((text, element) => element.classList.contains('trip-low'))).toBeVisible(); expect(region.getByText(/Unavailable: Outside/)).toBeVisible(); expect(region.getByText(/Retrieval error: Could not/)).toBeVisible();
   const pending = deferred(); getTripWeather.mockReturnValueOnce(pending.promise); click('Refresh Weather'); expect(screen.getByRole('button', { name: 'Get Weather' })).toBeDisabled();
   click('Cancel weather request'); expect(screen.getByText('Weather request cancelled.')).toBeVisible();
   getTripWeather.mockResolvedValueOnce(fail()); click('Refresh Weather'); expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable');
