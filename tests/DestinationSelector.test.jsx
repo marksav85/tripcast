@@ -126,3 +126,19 @@ it('renders distinct query responses and emits each selected location with its a
     previous = city;
   }
 });
+
+it('submits city search with Enter, announces loading, and requires deliberate single-result selection', async () => {
+  const user = userEvent.setup(); const { onChange } = setup(); const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
+  const input = screen.getByLabelText('Search city');
+  expect(screen.getByText(/press Search or Enter, then choose/)).toBeInTheDocument();
+  await user.type(input, 'Paris'); expect(fetchMock).not.toHaveBeenCalled();
+  await user.keyboard('{Enter}'); expect(screen.getByText('Searching cities…')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Searching…' })).toBeDisabled();
+  await act(async () => pending.resolve(apiResponse([paris])));
+  const result = screen.getByRole('button', { name: 'Paris, FR' });
+  expect(result).toHaveAttribute('aria-pressed', 'false'); expect(onChange).toHaveBeenLastCalledWith(null);
+  result.focus(); await user.keyboard(' '); expect(result).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByText('Selected city: Paris, FR')).toHaveAttribute('aria-live', 'polite');
+  await user.type(input, 'x'); expect(screen.queryByText('Selected city: Paris, FR')).not.toBeInTheDocument();
+  expect(onChange).toHaveBeenLastCalledWith(null);
+});

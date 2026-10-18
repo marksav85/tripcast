@@ -111,3 +111,75 @@ it('preserves public weather lookup while the local editor preview is open', asy
   change('City:','Berlin'); change('Date of travel:',daySummary.date); fireEvent.click(screen.getByRole('button',{name:'Submit'}));
   await screen.findByText('Weather loaded.');
 });
+
+it('keeps untouched errors quiet, reveals touched errors, and clears them after correction', () => {
+  render(<TripEditor />);
+  const title = screen.getByLabelText('Trip title');
+  expect(title).toHaveAttribute('aria-invalid', 'false');
+  expect(screen.queryByText(/Use a title between/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: 'Validation issues' })).not.toBeInTheDocument();
+  fireEvent.blur(title); expect(title).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByText(/Use a title between/)).toHaveAttribute('id', title.getAttribute('aria-describedby'));
+  change('Trip title', 'My trip'); expect(title).toHaveAttribute('aria-invalid', 'false');
+  expect(screen.queryByText(/Use a title between/)).not.toBeInTheDocument();
+});
+it('explains invalid saving through Check trip and focuses the first actionable field', () => {
+  const onSubmit = vi.fn(); render(<TripEditor onSubmit={onSubmit} />);
+  fireEvent.click(screen.getByText('Add destination')); fireEvent.click(screen.getByText('Add destination'));
+  fireEvent.click(screen.getByText('Check trip'));
+  expect(screen.getByLabelText('Trip title')).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
+  expect(onSubmit).not.toHaveBeenCalled();
+  for (const name of ['Destination 1', 'Destination 2']) {
+    const region = within(screen.getByRole('region', { name }));
+    expect(region.getByText('Search for a city and choose a result.')).toBeInTheDocument();
+    expect(region.getByLabelText('Search city')).toHaveAttribute('aria-invalid', 'true');
+    expect(region.getByLabelText(name + ' departure')).toHaveAttribute('aria-invalid', 'true');
+  }
+  expect(screen.queryByText(/IANA|latitude|longitude/)).not.toBeInTheDocument();
+});
+it('defers the temporary final departure mismatch until review and keeps full validation active', () => {
+  const initial = draft(); initial.destinations = [initial.destinations[0]];
+  const onSubmit = vi.fn(); render(<TripEditor initialDraft={initial} onSubmit={onSubmit} />);
+  fireEvent.blur(screen.getByLabelText('Destination 1 departure'));
+  expect(screen.queryByText('Final departure must equal trip end.')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
+  fireEvent.click(screen.getByText('Check trip'));
+  expect(screen.getByText('Final departure must equal trip end.')).toBeInTheDocument();
+  change('Destination 1 departure', initial.endDate);
+  expect(screen.queryByText('Final departure must equal trip end.')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeEnabled(); expect(onSubmit).not.toHaveBeenCalled();
+});
+it('shows final-boundary feedback after both relevant boundaries have been touched', () => {
+  const initial = draft(); initial.destinations = [initial.destinations[0]]; render(<TripEditor initialDraft={initial} />);
+  fireEvent.blur(screen.getByLabelText('Trip departure date')); fireEvent.blur(screen.getByLabelText('Destination 1 departure'));
+  expect(screen.getByText('Final departure must equal trip end.')).toBeInTheDocument();
+});
+it('prefills only a new arrival from the valid prior departure and keeps it editable', () => {
+  render(<TripEditor initialDraft={draft()} />); fireEvent.click(screen.getByText('Add destination'));
+  expect(screen.getByLabelText('Destination 3 arrival')).toHaveValue('2027-06-05');
+  expect(screen.getByLabelText('Destination 3 departure')).toHaveValue('');
+  change('Destination 2 departure', '2027-06-06');
+  expect(screen.getByLabelText('Destination 3 arrival')).toHaveValue('2027-06-05');
+  change('Destination 3 arrival', '2027-06-07');
+  expect(screen.getByLabelText('Destination 3 arrival')).toHaveValue('2027-06-07');
+  expect(screen.getByLabelText('Destination 1 departure')).toHaveValue('2027-06-03');
+  expect(screen.getByLabelText('Trip departure date')).toHaveValue('2027-06-05');
+});
+it.each(['', '2027-02-30'])('does not prefill from a missing or invalid prior departure: %s', departureDate => {
+  const initial = draft(); initial.destinations[1].departureDate = departureDate;
+  render(<TripEditor initialDraft={initial} />); fireEvent.click(screen.getByText('Add destination'));
+  expect(screen.getByLabelText('Destination 3 arrival')).toHaveValue(''); expect(screen.getByLabelText('Destination 3 departure')).toHaveValue('');
+});
+it.each(['2027-06-01', '', '2027-02-30'])('prefills the first arrival only from a valid trip start: %s', startDate => {
+  render(<TripEditor />); change('Trip arrival date', startDate); fireEvent.click(screen.getByText('Add destination'));
+  expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue(startDate === '2027-06-01' ? startDate : '');
+  change('Trip arrival date', '2027-06-02');
+  expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue(startDate === '2027-06-01' ? startDate : '');
+});
+it('Discard clears touched/review feedback as well as restoring the original dates', () => {
+  render(<TripEditor initialDraft={draft()} />); change('Trip title', ''); fireEvent.blur(screen.getByLabelText('Trip title'));
+  fireEvent.click(screen.getByText('Check trip')); fireEvent.click(screen.getByText('Discard changes'));
+  expect(screen.queryByText(/Check the highlighted fields/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Trip title')).toHaveValue('Summer'); expect(screen.getByLabelText('Trip title')).toHaveAttribute('aria-invalid', 'false');
+});

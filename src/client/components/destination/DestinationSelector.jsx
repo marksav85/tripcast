@@ -6,7 +6,7 @@ import { isTripTimeZone } from '../../../shared/trip.js';
 
 const inputClass = 'w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500';
 /** initialValue is a mount-time location snapshot; remount to replace it. onChange receives complete location fields, or null while selection is incomplete/invalid. */
-export default function DestinationSelector({ onChange, initialValue = null }) {
+export default function DestinationSelector({ onChange, initialValue = null, validationMessage = null }) {
   const id = useId();
   const [query, setQuery] = useState(initialValue?.cityName ?? ''); const [candidates, setCandidates] = useState([]);
   const [status, setStatus] = useState('idle'); const [message, setMessage] = useState('');
@@ -60,13 +60,15 @@ export default function DestinationSelector({ onChange, initialValue = null }) {
     output(city, zone);
   }
   return <section aria-label="Destination location" className="bg-white rounded-lg p-4 space-y-4">
-    <form onSubmit={search} noValidate className="space-y-2">
+    <form onSubmit={search} noValidate className="space-y-2" aria-label="City search">
       <label htmlFor={id + '-city'} className="block font-medium">Search city</label>
-      <input id={id + '-city'} value={query} onChange={(e) => editQuery(e.target.value)} className={inputClass} maxLength={100} required />
-      <button className="bg-blue-500 text-white rounded-lg p-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-60" disabled={status === 'loading'}>Search</button>
+      <input id={id + '-city'} value={query} onChange={(e) => editQuery(e.target.value)} className={inputClass} maxLength={100} required aria-describedby={id + '-guidance' + (validationMessage ? ' ' + id + '-validation' : '')} aria-invalid={Boolean(validationMessage)} />
+      <p id={id + '-guidance'} className="text-sm text-gray-600">Enter a city, press Search or Enter, then choose a result to select your destination.</p>
+      <button className="bg-blue-500 text-white rounded-lg p-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-60" disabled={status === 'loading'}>{status === 'loading' ? 'Searching…' : 'Search'}</button>
     </form>
     <output className="block" aria-live="polite">{message}</output>
-    {candidates.length > 0 && <fieldset className="space-y-2"><legend>Choose a city</legend>{candidates.map((city) => <button key={city.id} type="button" aria-pressed={location?.id === city.id} onClick={() => choose(city)} className="block w-full p-2 border border-blue-500 rounded-lg text-left focus:ring-2 focus:ring-blue-500">{locationLabel(city)}</button>)}</fieldset>}
-    {location && <p>Selected city: {locationLabel(location)}</p>}
+    {validationMessage && <p id={id + '-validation'} className="text-red-700 text-sm">{validationMessage}</p>}
+    {candidates.length > 0 && <fieldset className="space-y-2"><legend>Choose a city</legend>{candidates.map((city) => <button key={city.id} type="button" aria-pressed={location?.id === city.id} onClick={() => choose(city)} aria-label={locationLabel(city)} className={`flex w-full items-center justify-between gap-3 p-3 border rounded-lg text-left hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${location?.id === city.id ? 'bg-blue-50 border-blue-600' : 'bg-white border-gray-300'}`}><span>{locationLabel(city)}</span><span aria-hidden="true" className="text-blue-700 font-medium">{location?.id === city.id ? '✓ Selected' : 'Select →'}</span></button>)}</fieldset>}
+    {location && <output className="block rounded-lg bg-green-50 p-3 text-green-800" aria-live="polite">Selected city: {locationLabel(location)}</output>}
   </section>;
 }
