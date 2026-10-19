@@ -4,6 +4,7 @@ import useTripWeather from '../../hooks/useTripWeather.js';
 import { coveredDayCount } from '../../../shared/trip.js';
 import { formatCalendarDate } from '../../../shared/calendar.js';
 import Header from '../Header.jsx';
+import TripEmptyState from './TripEmptyState.jsx';
 import TripEditor from './TripEditor.jsx';
 import TripWeatherResults, { TripWeatherActions } from './TripWeatherResults.jsx';
 
@@ -35,13 +36,16 @@ export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
   function reload() {
     if (!loaded || window.confirm('Reload the saved trip? Your unsaved changes will be discarded.')) void load();
   }
+  const showEmpty = view === 'dashboard' && loaded && !saved && !busy && !error;
   const mutationPending = busy === 'saving' || busy === 'deleting';
   return <>
     <Header myTripRef={myTripRef} view={view} onNavigate={navigate} disabled={mutationPending} />
     <div hidden={view !== 'public'} ref={publicRegion} tabIndex={-1} aria-label="Single-city weather">{publicWeather}</div>
-    <main hidden={view === 'public'} className={view === 'dashboard' ? 'trip-dashboard' : 'w-full max-w-5xl mx-auto p-4 md:p-6 space-y-4 break-words'}>
+    <main hidden={view === 'public'} className={view === 'dashboard' ? `trip-dashboard${showEmpty ? ' trip-dashboard-empty' : ''}` : 'w-full max-w-5xl mx-auto p-4 md:p-6 space-y-4 break-words'}>
+      {showEmpty && <p className="trip-empty-eyebrow">Personal itinerary · Your workspace</p>}
       <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>
-      <p role={error ? 'alert' : 'status'}>{message}</p>
+      {showEmpty && <p className="trip-empty-intro">Your saved multi-destination itinerary and weather throughout your journey.</p>}
+      <p className={showEmpty ? 'sr-only' : undefined} role={error ? 'alert' : 'status'}>{message}</p>
       {!busy && (error || !loaded) && <button type="button" className={buttonClass} onClick={reload}>{loaded ? 'Reload saved trip' : 'Retry loading trip'}</button>}
       {loaded && view === 'editor' && <>
         <fieldset disabled={Boolean(busy)} className="min-w-0">
@@ -50,11 +54,7 @@ export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
         </fieldset>
         <button type="button" className={buttonClass} disabled={Boolean(busy)} onClick={() => navigate('dashboard')}>Back to My Trip</button>
       </>}
-      {loaded && view === 'dashboard' && (!saved ? <section aria-label="No saved trip" className="trip-empty space-y-3">
-        <h3 className="text-xl font-semibold">Plan your first trip</h3>
-        <p>You can save one trip at a time, with up to eight destinations and 42 weather days.</p>
-        <button type="button" className={buttonClass} disabled={Boolean(busy) || blocked} onClick={() => setView('editor')}>Create Trip</button>
-      </section> : <>
+      {loaded && view === 'dashboard' && (!saved ? showEmpty && <TripEmptyState disabled={blocked} onCreate={() => setView('editor')} onWeatherSearch={() => navigate('public')} /> : <>
         <section aria-label="Saved trip overview" className="trip-overview">
           <p className="trip-eyebrow">Travel itinerary weather</p>
           <h3 className="trip-title">{saved.draft.title}</h3>

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from '../src/client/App.jsx';
 import { AuthContext } from '../src/client/auth/context.js';
@@ -40,12 +41,12 @@ it('preserves anonymous public weather and does not load trips during session re
 it('distinguishes loading, load failure and a successful empty load', async () => {
   const pending = deferred(); loadMyTrip.mockReturnValueOnce(pending.promise); setup(); click('My Trip');
   expect(screen.getByRole('status')).toHaveTextContent('Loading saved trip');
-  expect(screen.queryByRole('button', { name: 'Create Trip' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Create Your Trip' })).not.toBeInTheDocument();
   await act(async () => pending.resolve(fail())); expect(screen.getByRole('alert')).toHaveTextContent('Service unavailable');
   expect(screen.queryByRole('region', { name: 'No saved trip' })).not.toBeInTheDocument();
   loadMyTrip.mockResolvedValueOnce(ok(null)); click('Retry loading trip');
   expect(await screen.findByRole('region', { name: 'No saved trip' })).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Create Trip' })).toBeEnabled(); expect(getTripWeather).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Create Your Trip' })).toBeEnabled(); expect(getTripWeather).not.toHaveBeenCalled();
 });
 it('preserves the same lifecycle and public form across repeated navigation', async () => {
   setup(); change('City:', 'Unsubmitted public city'); await dashboard();
@@ -81,7 +82,7 @@ it('returns to dashboard after saving the canonical revision and invalidates wea
 });
 it('creates the first trip through the existing editor without fetching unsaved weather', async () => {
   loadMyTrip.mockResolvedValue(ok(null)); saveMyTrip.mockResolvedValue(ok(savedTrip())); setup(); click('My Trip');
-  fireEvent.click(await screen.findByRole('button', { name: 'Create Trip' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Create Your Trip' }));
   change('Trip title', tripDraft.title); change('Trip arrival date', tripDraft.startDate); change('Trip departure date', tripDraft.endDate); click('Add destination');
   fetchMock.mockResolvedValueOnce(apiResponse([{ name: 'Paris', country: 'FR', lat: 48.8566, lon: 2.3522 }]));
   change('Search city', 'Paris'); click('Search'); fireEvent.click(await screen.findByRole('button', { name: 'Paris, FR' }));
@@ -132,4 +133,82 @@ it('uses shared My Trip navigation from the home promotion and preserves the pub
   expect(loadMyTrip).toHaveBeenCalledTimes(1);
   expect(saveMyTrip).not.toHaveBeenCalled();
   expect(getTripWeather).not.toHaveBeenCalled();
+});
+
+
+it('presents the confirmed empty dashboard with concise planning steps and limits', async () => {
+  loadMyTrip.mockResolvedValueOnce(ok(null)); setup(); click('My Trip');
+  const empty = await screen.findByRole('region', { name: 'No saved trip' });
+  expect(within(empty).getByRole('heading', { name: 'Your next adventure starts here.' })).toBeVisible();
+  expect(within(empty).getAllByRole('listitem')).toHaveLength(3);
+  expect(within(empty).getByRole('heading', { name: '1. Choose your destinations' })).toBeVisible();
+  expect(within(empty).getByRole('heading', { name: '2. Set your travel dates' })).toBeVisible();
+  expect(within(empty).getByRole('heading', { name: '3. Explore the weather' })).toBeVisible();
+  expect(within(empty).getByText(/One saved trip at a time.*eight destinations.*42 covered calendar days/)).toBeVisible();
+  expect(empty.querySelector('svg.trip-empty-illustration')).toHaveAttribute('aria-hidden', 'true');
+  expect(empty.querySelector('svg.trip-empty-illustration')).toHaveAttribute('focusable', 'false');
+  expect(screen.queryByRole('region', { name: 'Saved trip overview' })).not.toBeInTheDocument();
+  expect(screen.getAllByRole('banner')).toHaveLength(1);
+  expect(saveMyTrip).not.toHaveBeenCalled(); expect(getTripWeather).not.toHaveBeenCalled();
+});
+it('opens the existing editor from the primary empty-state action using the keyboard', async () => {
+  const user = userEvent.setup(); loadMyTrip.mockResolvedValueOnce(ok(null)); setup();
+  await user.click(screen.getByRole('button', { name: 'My Trip' }));
+  await screen.findByRole('region', { name: 'No saved trip' });
+  expect(screen.getByRole('heading', { name: 'My Trip' })).toHaveFocus();
+  await user.tab(); expect(screen.getByRole('button', { name: 'Create Your Trip' })).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByRole('heading', { name: 'Create Trip' })).toHaveFocus();
+  expect(screen.getByLabelText('Trip title')).toBeVisible();
+  expect(saveMyTrip).not.toHaveBeenCalled(); expect(getTripWeather).not.toHaveBeenCalled();
+});
+it('returns to public weather from the secondary empty-state action using the keyboard', async () => {
+  const user = userEvent.setup(); loadMyTrip.mockResolvedValueOnce(ok(null)); setup();
+  change('City:', 'Unsubmitted public city'); click('My Trip');
+  const empty = await screen.findByRole('region', { name: 'No saved trip' });
+  await user.tab(); await user.tab();
+  expect(within(empty).getByRole('button', { name: 'Weather Search' })).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByLabelText('City:')).toHaveValue('Unsubmitted public city');
+  expect(screen.getByLabelText('City:')).toBeVisible();
+  expect(screen.queryByRole('region', { name: 'No saved trip' })).not.toBeInTheDocument();
+  expect(loadMyTrip).toHaveBeenCalledTimes(1); expect(getTripWeather).not.toHaveBeenCalled();
+});
+it('does not show a previous account’s late empty result while another account is loading', async () => {
+  const first = deferred(); const second = deferred();
+  loadMyTrip.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const { rerender, view } = setup(); click('My Trip');
+  await waitFor(() => expect(loadMyTrip).toHaveBeenCalledTimes(1));
+  rerender(view('b')); click('My Trip');
+  await waitFor(() => expect(loadMyTrip).toHaveBeenCalledTimes(2));
+  await act(async () => first.resolve(ok(null)));
+  expect(screen.queryByRole('region', { name: 'No saved trip' })).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Loading saved trip');
+  await act(async () => second.resolve(ok(savedTrip(1, 'Account B'))));
+  expect(screen.getByRole('heading', { name: 'Account B' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Create Your Trip' })).not.toBeInTheDocument();
+});
+it('does not show the authenticated empty dashboard to an anonymous user', () => {
+  setup(null);
+  expect(screen.queryByRole('region', { name: 'No saved trip' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Create Your Trip' })).not.toBeInTheDocument();
+  expect(loadMyTrip).not.toHaveBeenCalled();
+});
+
+it('withholds the empty prompt after a failed first save until a successful reload', async () => {
+  loadMyTrip.mockResolvedValueOnce(ok(null)); saveMyTrip.mockResolvedValueOnce(fail()); setup(); click('My Trip');
+  fireEvent.click(await screen.findByRole('button', { name: 'Create Your Trip' }));
+  change('Trip title', tripDraft.title); change('Trip arrival date', tripDraft.startDate); change('Trip departure date', tripDraft.endDate); click('Add destination');
+  fetchMock.mockResolvedValueOnce(apiResponse([{ name: 'Paris', country: 'FR', lat: 48.8566, lon: 2.3522 }]));
+  change('Search city', 'Paris'); click('Search'); fireEvent.click(await screen.findByRole('button', { name: 'Paris, FR' }));
+  change('Destination 1 arrival', tripDraft.startDate); change('Destination 1 departure', tripDraft.endDate);
+  click('Save Trip'); await screen.findByRole('alert'); click('Discard changes');
+  expect(screen.queryByRole('region', { name: 'No saved trip' })).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('Service unavailable');
+  const pending = deferred(); loadMyTrip.mockReturnValueOnce(pending.promise); click('Reload saved trip');
+  expect(screen.queryByRole('button', { name: 'Create Your Trip' })).not.toBeInTheDocument();
+  await act(async () => pending.resolve(fail()));
+  expect(screen.queryByRole('region', { name: 'No saved trip' })).not.toBeInTheDocument();
+  loadMyTrip.mockResolvedValueOnce(ok(null)); click('Reload saved trip');
+  expect(await screen.findByRole('button', { name: 'Create Your Trip' })).toBeEnabled();
 });

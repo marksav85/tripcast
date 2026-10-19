@@ -278,3 +278,44 @@ body { background: var(--color-canvas); color: var(--color-text); font-family: v
 .tripcast-calendar-actions button:disabled { opacity: .5; cursor: not-allowed; }
 
 .tripcast-date-field :is(input, button):focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+
+/* The confirmed empty dashboard keeps its presentation separate from saved trips. */
+.trip-dashboard-empty { max-width: 76rem; padding: 2.5rem var(--page-gutter) 3rem; color: var(--color-text); background: var(--color-canvas); font-family: var(--font-body); }
+.trip-dashboard-empty > .trip-empty-eyebrow { display: inline-block; color: var(--color-primary); background: var(--color-surface-active); padding: .375rem .75rem; border-radius: var(--radius-pill); font-size: .6875rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.trip-dashboard-empty > h2 { color: var(--color-text); font: 700 clamp(1.75rem, 4vw, 2.25rem)/1.3 var(--font-heading); letter-spacing: -.035em; margin: var(--space-md) 0 .5rem; }
+.trip-empty-intro { color: var(--color-text-muted); font-size: 1rem; line-height: 1.7; margin-bottom: 2rem; }
+.trip-empty-state { display: grid; gap: 2.5rem; }
+.trip-empty-welcome { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 2.5rem var(--space-lg) 3rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: radial-gradient(ellipse at 50% 22%, var(--color-surface-soft), transparent 60%), var(--color-surface); box-shadow: var(--shadow-surface); }
+.trip-empty-illustration { display: block; width: min(100%, 30rem); height: auto; margin: 0 auto 2rem; }
+.trip-empty-route { stroke: var(--color-outline); }
+.trip-empty-waypoint, .trip-empty-cloud { fill: var(--color-surface-active); }
+.trip-empty-point { fill: var(--color-primary); }
+.trip-empty-passport { fill: var(--color-canvas); stroke: var(--color-outline); }
+.trip-empty-weather-tile { fill: var(--color-surface); stroke: var(--color-border); }
+.trip-empty-sun, .trip-empty-wind { stroke: var(--color-primary); }
+.trip-empty-welcome h3 { font: 700 clamp(1.5rem, 3vw, 2rem)/1.35 var(--font-heading); letter-spacing: -.03em; }
+.trip-empty-description { max-width: 34rem; margin: .75rem 0 1.75rem; font-size: .9375rem; line-height: 1.8; color: var(--color-text-muted); }
+.trip-empty-state .trip-empty-create { display: inline-flex; align-items: center; justify-content: center; gap: .75rem; min-height: 3.25rem; padding: .875rem 1.75rem; border-radius: var(--radius-control); font-size: .875rem; background: var(--color-primary); border-color: var(--color-primary); color: var(--color-surface); box-shadow: var(--shadow-surface); }
+.trip-empty-state .trip-empty-create:hover:not(:disabled) { background: var(--color-primary-hover); }
+.trip-empty-limits { margin-top: var(--space-lg); color: var(--color-text-muted); font-size: .75rem; line-height: 1.8; }
+.trip-empty-workflow > h3 { display: flex; align-items: center; gap: var(--space-md); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .08em; font-size: .6875rem; font-weight: 600; margin-bottom: var(--space-md); }
+.trip-empty-workflow > h3::after { content: ''; height: 1px; background: var(--color-border); flex: 1; }
+.trip-empty-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-lg); list-style: none; padding: 0; }
+.trip-empty-steps li { min-width: 0; padding: var(--space-lg); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card); box-shadow: var(--shadow-surface); }
+.trip-empty-step-icon { display: grid; place-items: center; flex: 0 0 2.5rem; width: 2.5rem; height: 2.5rem; color: var(--color-primary); background: var(--color-accent); border-radius: var(--radius-control); }
+.trip-empty-steps h4 { margin: var(--space-md) 0 .5rem; font: 600 1rem/1.5 var(--font-heading); letter-spacing: -.015em; }
+.trip-empty-steps p, .trip-empty-discovery p { color: var(--color-text-muted); font-size: .875rem; line-height: 1.7; }
+.trip-empty-discovery { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-lg); background: var(--color-surface-soft); border-radius: var(--radius-card); }
+.trip-empty-discovery h3 { font-size: .875rem; font-weight: 600; margin-bottom: .25rem; }
+.trip-empty-discovery .trip-button { display: inline-flex; align-items: center; justify-content: center; gap: .625rem; flex-shrink: 0; min-height: 2.75rem; margin-left: auto; color: var(--color-primary); background: var(--color-surface); border-color: var(--color-border); border-radius: var(--radius-control); }
+.trip-empty-state button:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+@media (max-width: 767px) {
+  .trip-dashboard-empty { padding-top: var(--space-lg); }
+  .trip-empty-welcome { padding: var(--space-lg) var(--space-md) 2rem; }
+  .trip-empty-illustration { max-width: 25rem; margin-bottom: var(--space-lg); }
+  .trip-empty-state { gap: var(--space-lg); }
+  .trip-empty-steps { grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+  .trip-empty-discovery { flex-wrap: wrap; }
+  .trip-empty-discovery > div { flex: 1; min-width: 10rem; }
+  .trip-empty-discovery .trip-button { flex-basis: 100%; margin-left: 0; }
+}
