@@ -41,15 +41,15 @@ export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
   return <>
     <Header myTripRef={myTripRef} view={view} onNavigate={navigate} disabled={mutationPending} />
     <div hidden={view !== 'public'} ref={publicRegion} tabIndex={-1} aria-label="Single-city weather">{publicWeather}</div>
-    <main hidden={view === 'public'} className={view === 'dashboard' ? `trip-dashboard${showEmpty ? ' trip-dashboard-empty' : ''}` : 'w-full max-w-5xl mx-auto p-4 md:p-6 space-y-4 break-words'}>
+    <main hidden={view === 'public'} className={view === 'dashboard' ? `trip-dashboard${showEmpty ? ' trip-dashboard-empty' : ''}` : 'trip-editor-page'}>
       {showEmpty && <p className="trip-empty-eyebrow">Personal itinerary · Your workspace</p>}
-      <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>
+      <h2 ref={heading} tabIndex={-1} className={view === 'editor' ? 'editor-page-title' : 'text-2xl font-bold'}>{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>
       {showEmpty && <p className="trip-empty-intro">Your saved multi-destination itinerary and weather throughout your journey.</p>}
       <p className={showEmpty ? 'sr-only' : undefined} role={error ? 'alert' : 'status'}>{message}</p>
       {!busy && (error || !loaded) && <button type="button" className={buttonClass} onClick={reload}>{loaded ? 'Reload saved trip' : 'Retry loading trip'}</button>}
       {loaded && view === 'editor' && <>
         <fieldset disabled={Boolean(busy)} className="min-w-0">
-          <TripEditor key={version} initialDraft={saved?.draft} onSubmit={submit} onCancel={() => setView('dashboard')}
+          <TripEditor showHeading={false} disabled={Boolean(busy)} key={version} initialDraft={saved?.draft} onSubmit={submit} onCancel={() => setView('dashboard')}
             submitLabel="Save Trip" submitMessage="" submitDisabled={blocked} />
         </fieldset>
         <button type="button" className={buttonClass} disabled={Boolean(busy)} onClick={() => navigate('dashboard')}>Back to My Trip</button>

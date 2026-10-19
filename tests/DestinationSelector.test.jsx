@@ -98,7 +98,8 @@ it('does not retain the prior city timezone when replacement resolution fails', 
   fireEvent.click(await screen.findByRole('button', { name: 'Paris, FR' }));
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ timeZone: 'Europe/Paris' }));
   resolve.mockReturnValue({ status: 'unresolved', timeZone: null });
-  fireEvent.click(screen.getByRole('button', { name: 'London, England, GB' }));
+  fetchMock.mockResolvedValueOnce(apiResponse([londonUK])); search('London');
+  fireEvent.click(await screen.findByRole('button', { name: 'London, England, GB' }));
   expect(onChange).toHaveBeenLastCalledWith(null);
   expect(screen.getByText(/Could not select this location/)).toBeInTheDocument();
 });
@@ -130,15 +131,40 @@ it('renders distinct query responses and emits each selected location with its a
 it('submits city search with Enter, announces loading, and requires deliberate single-result selection', async () => {
   const user = userEvent.setup(); const { onChange } = setup(); const pending = deferred(); fetchMock.mockReturnValueOnce(pending.promise);
   const input = screen.getByLabelText('Search city');
-  expect(screen.getByText(/press Search or Enter, then choose/)).toBeInTheDocument();
+  expect(screen.getByText(/Press Search or Enter, then choose/)).toBeInTheDocument();
   await user.type(input, 'Paris'); expect(fetchMock).not.toHaveBeenCalled();
   await user.keyboard('{Enter}'); expect(screen.getByText('Searching cities…')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Searching…' })).toBeDisabled();
   await act(async () => pending.resolve(apiResponse([paris])));
   const result = screen.getByRole('button', { name: 'Paris, FR' });
   expect(result).toHaveAttribute('aria-pressed', 'false'); expect(onChange).toHaveBeenLastCalledWith(null);
-  result.focus(); await user.keyboard(' '); expect(result).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByText('Selected city: Paris, FR')).toHaveAttribute('aria-live', 'polite');
-  await user.type(input, 'x'); expect(screen.queryByText('Selected city: Paris, FR')).not.toBeInTheDocument();
+  result.focus(); await user.keyboard(' ');
+  expect(screen.queryByRole('button', { name: 'Paris, FR' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Clear selected city' })).toHaveFocus();
+  expect(screen.getByText('Paris, FR', { selector: 'strong' })).toBeVisible();
+  expect(screen.getByText('Selected city:', { selector: 'output' })).toHaveAttribute('aria-live', 'polite');
+  await user.type(input, 'x'); expect(screen.queryByText('Selected city:', { selector: 'output' })).not.toBeInTheDocument();
+  expect(onChange).toHaveBeenLastCalledWith(null);
+});
+
+
+it('hides successful search results and clears every selected metadata field using the keyboard', async () => {
+  const user = userEvent.setup(); const { onChange } = setup();
+  fetchMock.mockResolvedValueOnce(apiResponse([paris, londonUK])); search();
+  fireEvent.click(await screen.findByRole('button', { name: 'Paris, FR' }));
+  expect(screen.queryByRole('group', { name: 'Choose a city' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'London, England, GB' })).not.toBeInTheDocument();
+  expect(screen.getAllByText('Selected city:', { selector: 'output' })).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Clear selected city' })).toHaveFocus();
+  const count = fetchMock.mock.calls.length;
+  await user.keyboard('{Enter}');
+  expect(screen.getByLabelText('Search city')).toHaveFocus();
+  expect(screen.getByLabelText('Search city')).toHaveValue('');
+  expect(screen.queryByText(/Selected city:/)).not.toBeInTheDocument();
+  expect(onChange).toHaveBeenLastCalledWith(null);
+  expect(fetchMock).toHaveBeenCalledTimes(count);
+  fetchMock.mockResolvedValueOnce(apiResponse([londonUK]));
+  await user.type(screen.getByLabelText('Search city'), 'London'); await user.keyboard('{Enter}');
+  expect(await screen.findByRole('button', { name: 'London, England, GB' })).toBeVisible();
   expect(onChange).toHaveBeenLastCalledWith(null);
 });

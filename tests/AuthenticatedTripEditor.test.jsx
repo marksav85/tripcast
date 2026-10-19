@@ -51,7 +51,7 @@ it('creates with a stable secure UUID across failures, preventing duplicate conc
   changeTitle('Summer');
   fireEvent.change(screen.getByLabelText('Trip arrival date'), { target: { value: draft.startDate } });
   fireEvent.change(screen.getByLabelText('Trip departure date'), { target: { value: draft.endDate } });
-  fireEvent.click(screen.getByText('Add destination'));
+  fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
   const { fetchMock, apiResponse } = await import('./fixtures/api');
   fetchMock.mockResolvedValueOnce(apiResponse([{ name: 'Paris', country: 'FR', lat: 48.8566, lon: 2.3522 }]));
   fireEvent.change(screen.getByLabelText('Search city'), { target: { value: 'Paris' } });

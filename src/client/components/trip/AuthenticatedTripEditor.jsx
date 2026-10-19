@@ -19,7 +19,7 @@ function TripSession({ onClose }) {
     <p>This editor saves trips to your Supabase account.</p>
     <p role={error ? 'alert' : 'status'}>{message}</p>
     {loaded && <fieldset disabled={Boolean(busy)} className="min-w-0">
-      <TripEditor key={version} initialDraft={saved?.draft} onSubmit={save}
+      <TripEditor disabled={Boolean(busy)} key={version} initialDraft={saved?.draft} onSubmit={save}
         submitLabel="Save Trip" submitMessage="" submitDisabled={blocked} />
       {saved && <button type="button" disabled={blocked} onClick={() => { if (window.confirm('Delete this saved trip? This also discards local edits.')) remove(); }}>Delete Trip</button>}
     </fieldset>}

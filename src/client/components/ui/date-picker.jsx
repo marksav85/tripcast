@@ -23,6 +23,8 @@ export const DatePicker = forwardRef(function DatePicker({
     setDraft({ value, text: displayInputDate(value, format), format: format.placeholder, invalid: false });
   }
   const showError = draft.invalid && !inputProps['aria-invalid'];
+  const fieldState = inputProps['aria-invalid'] || showError ? 'invalid'
+    : parseInputDate(draft.text, format) ? 'populated' : 'empty';
   function edit(text) {
     const next = parseInputDate(text, format);
     setDraft({ value: next, text, format: format.placeholder, invalid: false });
@@ -47,7 +49,7 @@ export const DatePicker = forwardRef(function DatePicker({
   }
   return <Popover open={open && !disabled} onOpenChange={setOpen}>
     <div>
-      <div className="tripcast-date-field">
+      <div className="tripcast-date-field" data-state={fieldState}>
         <input {...inputProps} ref={ref} type="text" className="home-input tripcast-date-input"
           value={draft.text} onChange={(event) => edit(event.target.value)} onBlur={finishEditing} disabled={disabled}
           aria-invalid={Boolean(inputProps['aria-invalid'] || showError)}

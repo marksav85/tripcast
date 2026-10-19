@@ -4,20 +4,31 @@ import { locationLabel, validateLookup, validCoordinates } from '../../lib/locat
 import { resolveTimeZone } from '../../lib/timeZone.js';
 import { isTripTimeZone } from '../../../shared/trip.js';
 
-const inputClass = 'w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500';
+const inputClass = 'editor-input';
 /** initialValue is a mount-time location snapshot; remount to replace it. onChange receives complete location fields, or null while selection is incomplete/invalid. */
 export default function DestinationSelector({ onChange, initialValue = null, validationMessage = null }) {
   const id = useId();
   const [query, setQuery] = useState(initialValue?.cityName ?? ''); const [candidates, setCandidates] = useState([]);
   const [status, setStatus] = useState('idle'); const [message, setMessage] = useState('');
   const [location, setLocation] = useState(initialValue ? { id: `${initialValue.lat},${initialValue.lon}`, name: initialValue.cityName, country: initialValue.countryCode, region: initialValue.region ?? '', lat: initialValue.lat, lon: initialValue.lon } : null);
+  const inputRef = useRef(null); const clearRef = useRef(null); const focusSelection = useRef(false);
   const request = useRef(null); const generation = useRef(0);
   useEffect(() => () => { generation.current += 1; request.current?.abort(); }, []);
+  useEffect(() => {
+    if (location && focusSelection.current) {
+      focusSelection.current = false;
+      clearRef.current?.focus();
+    }
+  }, [location]);
   function clearSearch() {
     generation.current += 1; request.current?.abort();
     setCandidates([]); setLocation(null); onChange(null);
   }
   function editQuery(value) { clearSearch(); setQuery(value); setStatus('idle'); setMessage(''); }
+  function clearSelection() {
+    clearSearch(); setQuery(''); setStatus('idle'); setMessage('');
+    inputRef.current?.focus();
+  }
   async function search(event) {
     event.preventDefault(); clearSearch();
     const { query: normalized, errors } = validateLookup(query, '2000-01-01');
@@ -55,20 +66,25 @@ export default function DestinationSelector({ onChange, initialValue = null, val
     }
     const result = resolveTimeZone(city.lat, city.lon);
     const zone = result.status === 'suggested' && isTripTimeZone(result.timeZone) ? result.timeZone : '';
+    focusSelection.current = Boolean(zone);
     setLocation(zone ? city : null);
+    if (zone) { setCandidates([]); setStatus('selected'); }
     setMessage(zone ? '' : 'Could not select this location. Try selecting it again or choose another city.');
     output(city, zone);
   }
-  return <section aria-label="Destination location" className="bg-white rounded-lg p-4 space-y-4">
-    <form onSubmit={search} noValidate className="space-y-2" aria-label="City search">
-      <label htmlFor={id + '-city'} className="block font-medium">Search city</label>
-      <input id={id + '-city'} value={query} onChange={(e) => editQuery(e.target.value)} className={inputClass} maxLength={100} required aria-describedby={id + '-guidance' + (validationMessage ? ' ' + id + '-validation' : '')} aria-invalid={Boolean(validationMessage)} />
-      <p id={id + '-guidance'} className="text-sm text-gray-600">Enter a city, press Search or Enter, then choose a result to select your destination.</p>
-      <button className="bg-blue-500 text-white rounded-lg p-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-60" disabled={status === 'loading'}>{status === 'loading' ? 'Searching…' : 'Search'}</button>
+  return <section aria-label="Destination location" className="editor-location-selector">
+    <form onSubmit={search} noValidate className="editor-city-search" aria-label="City search">
+      <label htmlFor={id + '-city'} className="editor-city-label">Search city</label>
+      <input ref={inputRef} id={id + '-city'} value={query} onChange={(e) => editQuery(e.target.value)} className={inputClass} maxLength={100} required aria-describedby={id + '-guidance' + (validationMessage ? ' ' + id + '-validation' : '')} aria-invalid={Boolean(validationMessage)} />
+      <p id={id + '-guidance'} className="editor-city-guidance">Press Search or Enter, then choose a city from the results.</p>
+      <button className="editor-button editor-button-secondary" disabled={status === 'loading'}>{status === 'loading' ? 'Searching…' : 'Search'}</button>
     </form>
-    <output className="block" aria-live="polite">{message}</output>
-    {validationMessage && <p id={id + '-validation'} className="text-red-700 text-sm">{validationMessage}</p>}
-    {candidates.length > 0 && <fieldset className="space-y-2"><legend>Choose a city</legend>{candidates.map((city) => <button key={city.id} type="button" aria-pressed={location?.id === city.id} onClick={() => choose(city)} aria-label={locationLabel(city)} className={`flex w-full items-center justify-between gap-3 p-3 border rounded-lg text-left hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${location?.id === city.id ? 'bg-blue-50 border-blue-600' : 'bg-white border-gray-300'}`}><span>{locationLabel(city)}</span><span aria-hidden="true" className="text-blue-700 font-medium">{location?.id === city.id ? '✓ Selected' : 'Select →'}</span></button>)}</fieldset>}
-    {location && <output className="block rounded-lg bg-green-50 p-3 text-green-800" aria-live="polite">Selected city: {locationLabel(location)}</output>}
+    <output className="editor-city-feedback" aria-live="polite">{message}</output>
+    {validationMessage && <p id={id + '-validation'} className="editor-field-error">{validationMessage}</p>}
+    {candidates.length > 0 && <fieldset className="editor-city-results"><legend>Choose a city</legend>{candidates.map((city) => <button key={city.id} type="button" aria-pressed={location?.id === city.id} onClick={() => choose(city)} aria-label={locationLabel(city)} className={`editor-city-option${location?.id === city.id ? ' editor-city-option-selected' : ''}`}><span>{locationLabel(city)}</span><span aria-hidden="true" className="editor-city-option-action">{location?.id === city.id ? '✓ Selected' : 'Select →'}</span></button>)}</fieldset>}
+    {location && <div className="editor-city-selected">
+      <output aria-live="polite">Selected city: <strong>{locationLabel(location)}</strong></output>
+      <button ref={clearRef} type="button" className="editor-city-clear" onClick={clearSelection} aria-label="Clear selected city" title="Clear city selection"><span aria-hidden="true">×</span></button>
+    </div>}
   </section>;
 }

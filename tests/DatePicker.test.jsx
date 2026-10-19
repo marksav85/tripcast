@@ -158,3 +158,11 @@ it('defaults to day-first despite an American browser preference', async () => {
   expect(field).toHaveValue('05/05/2026');
   expect(changed).toHaveBeenLastCalledWith('2026-05-05');
 });
+
+it('gives external date errors precedence over a parseable populated value', () => {
+  setup({ 'aria-invalid': true });
+  const field = screen.getByLabelText('Travel date');
+  expect(field).toHaveValue('31/12/2026');
+  expect(field.closest('.tripcast-date-field')).toHaveAttribute('data-state', 'invalid');
+  expect(field).toHaveAttribute('aria-invalid', 'true');
+});
