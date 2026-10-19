@@ -28,7 +28,7 @@ describe('geolocation lifecycle', () => {
     await geo.succeed();
     expect(screen.getByLabelText('City:')).toHaveValue('Berlin');
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
     await screen.findByText('Weather loaded.');
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ lat: 52.521, lon: 13.406 });
@@ -55,7 +55,7 @@ describe('geolocation lifecycle', () => {
     if (action === 'reset') fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     if (action === 'city') fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Paris' } });
     if (action === 'date') fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
-    if (action === 'submit') fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    if (action === 'submit') fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
     if (action === 'unmount') geo.unmount();
     await geo.succeed();
     expect(fetchMock).not.toHaveBeenCalled();

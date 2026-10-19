@@ -108,7 +108,7 @@ it('preserves public weather lookup while the local editor preview is open', asy
   fireEvent.click(screen.getByRole('button',{name:'Open local trip editor'}));
   expect(screen.getByRole('region',{name:'Trip editor'})).toBeInTheDocument();
   fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
-  change('City:','Berlin'); change('Date of travel:',daySummary.date); fireEvent.click(screen.getByRole('button',{name:'Submit'}));
+  change('City:','Berlin'); change('Date of travel:',daySummary.date); fireEvent.click(screen.getByRole('button',{name:'Search Weather'}));
   await screen.findByText('Weather loaded.');
 });
 

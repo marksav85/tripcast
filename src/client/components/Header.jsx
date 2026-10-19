@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useAuth } from '../auth/context.js';
 import AuthPanel from './auth/AuthPanel.jsx';
 
-export default function Header({ view = 'public', onNavigate = () => {}, disabled = false }) {
+export default function Header({ view = 'public', onNavigate = () => {}, disabled = false, myTripRef }) {
   const { isAuthenticated, loading } = useAuth();
   const [authView, setAuthView] = useState(null);
   const trigger = useRef(null);
@@ -27,7 +27,7 @@ export default function Header({ view = 'public', onNavigate = () => {}, disable
       </button>
       <nav aria-label="Weather and trip" className="shell-navigation">
         <button type="button" aria-current={view === 'public' ? 'page' : undefined} disabled={disabled} onClick={(event) => navigate('public', event)}>Weather Search</button>
-        <button type="button" aria-current={view !== 'public' ? 'page' : undefined} disabled={disabled || loading} onClick={(event) => navigate('dashboard', event)}>My Trip</button>
+        <button ref={myTripRef} type="button" aria-current={view !== 'public' ? 'page' : undefined} disabled={disabled || loading} onClick={(event) => navigate('dashboard', event)}>My Trip</button>
       </nav>
       <AuthPanel view={authView} onViewChange={changeAuthView} />
     </div>

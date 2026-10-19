@@ -18,7 +18,7 @@ function wireWorker(options = {}, env = { STAGE: 'local', MOCK_PROVIDER: 'true' 
 function lookup(city = 'Berlin') {
   fireEvent.change(screen.getByLabelText('City:'), { target: { value: city } });
   fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: '2026-10-13' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
 }
 
 it('runs the real React fetch client through Worker validation and synthetic normalization', async () => {
@@ -62,7 +62,7 @@ it('renders a real 4.0 fixture through the Worker without exposing daily rain to
   }) }, { OPENWEATHER_API_KEY: key });
   fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Paris' } });
   fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: '2026-10-14' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
   await screen.findByText('Weather loaded.');
   expect(screen.getByText('Weather conditions: overcast clouds.')).toBeVisible();
   expect(screen.getByText('Precipitation probability: 0%')).toBeVisible();

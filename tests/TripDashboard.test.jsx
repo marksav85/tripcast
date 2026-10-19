@@ -33,7 +33,7 @@ it('preserves anonymous public weather and does not load trips during session re
   expect(screen.getByRole('button', { name: 'My Trip' })).toBeDisabled();
   expect(loadMyTrip).not.toHaveBeenCalled();
   fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
-  change('City:', 'Berlin'); change('Date of travel:', daySummary.date); click('Submit'); await screen.findByText('Weather loaded.');
+  change('City:', 'Berlin'); change('Date of travel:', daySummary.date); click('Search Weather'); await screen.findByText('Weather loaded.');
   rerender(view('a')); await waitFor(() => expect(loadMyTrip).toHaveBeenCalledTimes(1));
   click('My Trip'); expect(await screen.findByRole('heading', { name: 'Summer' })).toBeVisible();
 });
@@ -119,4 +119,17 @@ it.each(['b', null])('isolates pending work on account change/sign-out %s', asyn
   expect(screen.queryByRole('heading', { name: 'Summer' })).not.toBeInTheDocument();
   if (owner) { click('My Trip'); expect(await screen.findByRole('heading', { name: 'Account B' })).toBeVisible(); }
   await act(async () => pending.resolve({ ok: true, ...weatherEnvelope(), error: null })); expect(screen.queryByText(/Some dates could not/)).not.toBeInTheDocument();
+});
+
+it('uses shared My Trip navigation from the home promotion and preserves the public draft', async () => {
+  setup();
+  change('City:', 'Unsubmitted public city');
+  click('Plan a Trip');
+  expect(await screen.findByRole('heading', { name: 'Summer' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'My Trip' })).toHaveAttribute('aria-current', 'page');
+  click('Weather Search');
+  expect(screen.getByLabelText('City:')).toHaveValue('Unsubmitted public city');
+  expect(loadMyTrip).toHaveBeenCalledTimes(1);
+  expect(saveMyTrip).not.toHaveBeenCalled();
+  expect(getTripWeather).not.toHaveBeenCalled();
 });

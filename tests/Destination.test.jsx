@@ -14,7 +14,7 @@ function fill(city = 'Berlin', date = '2026-10-13') {
   fireEvent.change(screen.getByLabelText('City:'), { target: { value: city } });
   fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: date } });
 }
-function submit() { fireEvent.click(screen.getByRole('button', { name: 'Submit' })); }
+function submit() { fireEvent.click(screen.getByRole('button', { name: 'Search Weather' })); }
 async function success() { await screen.findByText('Weather loaded.'); }
 const response = apiResponse;
 
@@ -32,6 +32,21 @@ describe('single-city lookup regression', () => {
     fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Paris' } });
     expect(screen.getByRole('heading', { name: 'Berlin, DE' })).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('submits the calendar-selected day unchanged and resets the controlled picker', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response(daySummary));
+    app(); fill('Berlin', '2026-10-12');
+    await user.click(screen.getByRole('button', { name: 'Open calendar for date of travel' }));
+    await user.click(screen.getByRole('button', { name: /October 13th, 2026/ }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Date of travel:')).toHaveValue('13/10/2026');
+    submit(); await success();
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ lat: berlin.lat, lon: berlin.lon, date: '2026-10-13' });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(screen.getByLabelText('Date of travel:')).toHaveValue('');
+    expect(screen.getByLabelText('City:')).toHaveFocus();
   });
 
   it('retains selected coordinates for identical resubmission and a changed date', async () => {
@@ -57,7 +72,7 @@ describe('single-city lookup regression', () => {
     fetchMock.mockResolvedValueOnce(response(data));
     app(); fill(); submit();
     expect(await screen.findByRole('alert')).toHaveTextContent(/city service/);
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Search Weather' })).toBeEnabled();
   });
 
   it('supports ambiguity through focused keyboard-accessible candidate buttons', async () => {
@@ -82,7 +97,7 @@ describe('single-city lookup regression', () => {
     fetchMock.mockResolvedValueOnce(response(daySummary));
     fireEvent.click(screen.getByRole('button', { name: 'Retry last lookup' })); await success();
     expect(screen.getByLabelText('City:')).toHaveValue('Berlin');
-    expect(screen.getByLabelText('Date of travel:')).toHaveValue('2026-10-13');
+    expect(screen.getByLabelText('Date of travel:')).toHaveValue('13/10/2026');
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -179,17 +194,25 @@ describe('single-city lookup regression', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('provides named buttons, controlled Today and Reset', () => {
-    vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 9, 13, 1));
-    try {
-      app();
-      expect(screen.getByLabelText('City:')).toBeRequired();
-      expect(screen.getByRole('button', { name: 'Use current location' })).toBeEnabled();
-      fireEvent.click(screen.getByRole('button', { name: "Use today's date" }));
-      expect(screen.getByLabelText('Date of travel:')).toHaveValue('2026-10-13');
-      fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-      expect(screen.getByLabelText('Date of travel:')).toHaveValue('');
-    } finally { vi.useRealTimers(); }
+  it('provides one calendar control, typed date entry and Reset', () => {
+    app();
+    expect(screen.getByLabelText('City:')).toBeRequired();
+    expect(screen.getByLabelText('Date of travel:')).toBeRequired();
+    expect(screen.getByRole('button', { name: 'Use current location' })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'Open calendar for date of travel' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: "Use today's date" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: '2026-10-13' } });
+    expect(screen.getByLabelText('Date of travel:')).toHaveValue('2026-10-13');
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(screen.getByLabelText('Date of travel:')).toHaveValue('');
+  });
+
+  it('retains parent validation for invalid typed dates and focuses the date field', () => {
+    app(); fill('Berlin', '2027-02-29'); submit();
+    expect(screen.getByLabelText('Date of travel:')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Date of travel:')).toHaveFocus();
+    expect(screen.getByLabelText('Date of travel:')).toHaveValue('2027-02-29');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('keeps city parameters separate from reserved URL characters', async () => {
@@ -209,8 +232,21 @@ describe('single-city lookup regression', () => {
     app(); fill(); submit();
     const result = screen.getByRole('region', { name: 'Weather result' });
     expect(within(result).getByText('Finding cities…')).toBeVisible();
-    expect(within(result).queryByTestId('loading-animation')).not.toBeInTheDocument();
+    expect(within(result).queryByTestId('loading-indicator')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     await act(async () => pending.resolve(response([])));
   });
+});
+
+it.each([['en-GB', '25/10/2026'], ['en-US', '10/25/2026'], ['de-DE', '25.10.2026']])('submits an ISO day from %s entry and resets an invalid draft', async (locale, typed) => {
+  vi.stubGlobal('navigator', { language: locale });
+  fetchMock.mockResolvedValueOnce(response([berlin])).mockResolvedValueOnce(response({ ...daySummary, date: '2026-10-25' }));
+  app(); fill('Berlin', typed); submit(); await success();
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body).date).toBe('2026-10-25');
+  fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: '31/02/2026' } });
+  submit();
+  expect(screen.getByLabelText('Date of travel:')).toHaveAttribute('aria-invalid', 'true');
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+  expect(screen.getByLabelText('Date of travel:')).toHaveValue('');
 });

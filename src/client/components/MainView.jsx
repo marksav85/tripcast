@@ -1,13 +1,10 @@
-// src/client/components/MainView.js
-import { useRef, useEffect, useContext } from "react";
-import WeatherContext from "../context/WeatherContextProvider";
-import Destination from "./destination/Destination";
-import Weather from "./weather/Weather";
-import useReducedMotion from "../hooks/useReducedMotion";
+import { useRef, useEffect, useContext } from 'react';
+import WeatherContext from '../context/WeatherContextProvider';
+import Destination from './destination/Destination';
+import Weather from './weather/Weather';
+import useReducedMotion from '../hooks/useReducedMotion';
 
-
-// MainView component that displays Destination and Weather components
-export default function MainView() {
+export default function MainView({ onPlanTrip }) {
   const { weather } = useContext(WeatherContext);
   const reducedMotion = useReducedMotion();
   const weatherRef = useRef(null);
@@ -17,24 +14,20 @@ export default function MainView() {
     }
   }, [weather.status, weather.result, reducedMotion]);
 
-  return (
-    <div
-      className="flex flex-col md:flex-row w-full h-full justify-center items-center space-y-6 md:space-y-0 md:space-x-6 p-6 bg-cover bg-center travel-background"
-    >
-      {/* Render the Destination component */}
-      <Destination />
-
-      {/* Container for the Weather component */}
-      {/* 
-        The `w-full max-w-md` class ensures that the Weather component
-        takes up the full width available but is constrained to a maximum width
-        of `md`. Wrapping Weather in this div allows it to be styled without
-        affecting its internal layout or width.
-      */}
-      <div className="w-full max-w-md" ref={weatherRef}>
-        {/* Render the Weather component */}
-        <Weather />
+  return <div className="public-home">
+    <section className="home-hero" aria-labelledby="home-title">
+      <p className="home-eyebrow">Public weather search</p>
+      <h1 id="home-title">Your journey, your weather.</h1>
+      <p>Check the weather at your next destination. Choose a city and travel date to start planning your journey.</p>
+    </section>
+    <Destination />
+    <div ref={weatherRef} className="home-results"><Weather /></div>
+    {onPlanTrip && <section className="home-trip-promotion" aria-labelledby="home-trip-title">
+      <div><p className="home-eyebrow">Multi-destination planning</p>
+        <h2 id="home-trip-title">Exploring more than one destination?</h2>
+        <p>Save an itinerary and check the weather throughout your journey.</p>
       </div>
-    </div>
-  );
+      <button type="button" className="home-button home-button-secondary" onClick={onPlanTrip}>Plan a Trip <span aria-hidden="true">→</span></button>
+    </section>}
+  </div>;
 }

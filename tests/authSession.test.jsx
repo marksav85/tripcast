@@ -94,7 +94,7 @@ describe('session lifecycle', () => {
     expect(screen.getByText(/Public weather remains available/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
     await screen.findByText('Weather loaded.');
   });
 });

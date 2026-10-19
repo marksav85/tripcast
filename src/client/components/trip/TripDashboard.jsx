@@ -10,7 +10,7 @@ import TripWeatherResults, { TripWeatherActions } from './TripWeatherResults.jsx
 const buttonClass = 'border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-50';
 
 /** Mount only for an authenticated account, keyed by ownerId. Both lifecycles outlive view changes. */
-export default function TripDashboard({ ownerId, publicWeather }) {
+export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
   const trip = useSavedTrip(ownerId);
   const { loaded, saved, version, busy, message, error, blocked, load, save, remove } = trip;
   const weather = useTripWeather({ saved, ownerId, version, disabled: Boolean(busy) || blocked });
@@ -37,7 +37,7 @@ export default function TripDashboard({ ownerId, publicWeather }) {
   }
   const mutationPending = busy === 'saving' || busy === 'deleting';
   return <>
-    <Header view={view} onNavigate={navigate} disabled={mutationPending} />
+    <Header myTripRef={myTripRef} view={view} onNavigate={navigate} disabled={mutationPending} />
     <div hidden={view !== 'public'} ref={publicRegion} tabIndex={-1} aria-label="Single-city weather">{publicWeather}</div>
     <main hidden={view === 'public'} className={view === 'dashboard' ? 'trip-dashboard' : 'w-full max-w-5xl mx-auto p-4 md:p-6 space-y-4 break-words'}>
       <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>

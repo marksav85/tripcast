@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event';
 import { AuthContext } from '../src/client/auth/context.js';
 import { fetchMock, apiResponse } from './fixtures/api';
 import { act, fireEvent, render, screen } from '@testing-library/react';
@@ -16,7 +17,7 @@ it.each([false, true])('scrolls on successful result with reduced motion=%s', as
     render(<AuthContext.Provider value={{ isAuthenticated: false }}><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
     fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
     await screen.findByText('Weather loaded.');
     expect(screen.getByRole('heading', { name: 'Berlin, DE' })).toHaveFocus();
     expect(scroll).toHaveBeenCalledWith({ behavior: reduced ? 'auto' : 'smooth' });
@@ -38,11 +39,25 @@ it('reacts to a reduced-motion preference change during loading', async () => {
   const app = render(<AuthContext.Provider value={{ isAuthenticated: false }}><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
   fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
   fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });
-  fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
-  expect(screen.getByTestId('loading-animation')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
+  expect(screen.getByTestId('loading-indicator')).toBeInTheDocument();
   act(() => listeners.forEach((callback) => callback({ matches: true })));
-  expect(screen.queryByTestId('loading-animation')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('loading-indicator')).not.toBeInTheDocument();
   app.unmount();
   expect(remove).toHaveBeenCalledTimes(2);
   await act(async () => pending.resolve(apiResponse([berlin])));
+});
+
+it('opens the shared sign-in form from the anonymous trip promotion without requesting weather', async () => {
+  const user = userEvent.setup();
+  const auth = { isAuthenticated: false, user: null, loading: false, client: { auth: {} }, completeRecovery: vi.fn() };
+  render(<AuthContext.Provider value={auth}><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
+  expect(screen.getByRole('heading', { level: 1, name: 'Your journey, your weather.' })).toBeVisible();
+  expect(screen.getByText('Your daily weather summary will appear here after a search.')).toBeVisible();
+  expect(screen.queryByText(/°C/)).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Plan a Trip' }));
+  expect(screen.getAllByRole('form', { name: 'Sign in' })).toHaveLength(1);
+  expect(screen.getByLabelText('Email')).toHaveFocus();
+  expect(screen.getAllByRole('banner')).toHaveLength(1);
+  expect(fetchMock).not.toHaveBeenCalled();
 });
