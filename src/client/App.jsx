@@ -13,7 +13,7 @@ function App() {
     <div className="app-shell">
       {auth.isAuthenticated
         ? <TripDashboard key={auth.user.id} ownerId={auth.user.id} myTripRef={myTripRef} publicWeather={publicWeather} />
-        : <><Header myTripRef={myTripRef} /><main>{publicWeather}</main></>}
+        : <Header myTripRef={myTripRef}><main>{publicWeather}</main></Header>}
     </div>
   );
 }

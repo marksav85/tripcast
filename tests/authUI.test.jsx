@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { AuthContext } from '../src/client/auth/context.js';
 import AuthPanel from '../src/client/components/auth/AuthPanel.jsx';
@@ -82,4 +83,58 @@ it('cleans up pending form responses on view changes', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Forgot password' }));
   await act(async () => pending.resolve({ data: {} })); expect(screen.queryByText('You are signed in.')).not.toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole('form', { name: 'Forgot password' })).toBeInTheDocument());
+});
+
+it('switches account modes with keyboard controls and focuses the new form', async () => {
+  const user = userEvent.setup();
+  setup(); await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  expect(screen.getByRole('heading', { name: 'Welcome back.' })).toBeVisible();
+  expect(screen.getByLabelText('Email')).toHaveFocus();
+  const modes = screen.getByRole('group', { name: 'Account mode' });
+  const register = within(modes).getByRole('button', { name: 'Create account' });
+  register.focus(); await user.keyboard('{Enter}');
+  expect(screen.getByRole('form', { name: 'Create account' })).toBeVisible();
+  expect(register).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByLabelText('Email')).toHaveFocus();
+});
+it('toggles password visibility with the keyboard without submitting or clearing it', async () => {
+  const user = userEvent.setup();
+  const { auth } = setup(); await user.click(screen.getByRole('button', { name: 'Sign in' })); fill();
+  const password = screen.getByLabelText('Password'); expect(password).toHaveAttribute('type', 'password');
+  const toggle = screen.getByRole('button', { name: 'Show password' }); toggle.focus();
+  await user.keyboard('{Enter}');
+  expect(password).toHaveAttribute('type', 'text'); expect(password).toHaveValue('secret123');
+  expect(screen.getByRole('button', { name: 'Hide password' })).toHaveFocus();
+  await user.keyboard(' ');
+  expect(password).toHaveAttribute('type', 'password'); expect(password).toHaveValue('secret123');
+  expect(auth.signInWithPassword).not.toHaveBeenCalled();
+});
+it('provides Send Reset Link and a focused return to sign-in', async () => {
+  const user = userEvent.setup();
+  setup(); await user.click(screen.getByRole('button', { name: 'Forgot password' }));
+  expect(screen.getByRole('button', { name: 'Send Reset Link' })).toBeVisible();
+  expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Back to Sign In' }));
+  expect(screen.getByRole('form', { name: 'Sign in' })).toBeVisible(); expect(screen.getByLabelText('Email')).toHaveFocus();
+});
+it('associates local validation with its field and disables all form controls while submitting', async () => {
+  const { auth } = setup(); fireEvent.click(screen.getByRole('button', { name: 'Sign in' })); submit('Sign in');
+  const email = screen.getByLabelText('Email');
+  expect(email).toHaveFocus(); expect(email).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByText('Enter a valid email address.')).toHaveAttribute('id', email.getAttribute('aria-describedby'));
+  const pending = deferred(); auth.signInWithPassword.mockReturnValue(pending.promise); fill(); submit('Sign in');
+  expect(screen.getByRole('form', { name: 'Sign in' })).toHaveAttribute('aria-busy', 'true');
+  expect(email).toBeDisabled(); expect(screen.getByLabelText('Password')).toBeDisabled(); expect(screen.getByRole('button', { name: 'Show password' })).toBeDisabled();
+  await act(async () => pending.resolve({ data: {} }));
+  expect(screen.getByLabelText('Password')).toHaveValue(''); expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password');
+});
+it('lets public weather remain accessible during recovery without completing or discarding recovery', async () => {
+  const user = userEvent.setup();
+  const { state } = setup({ user: { id: 'a' }, recoveryStatus: 'ready' });
+  await user.click(screen.getByRole('button', { name: 'Weather Search' }));
+  expect(screen.queryByRole('form', { name: 'Set new password' })).not.toBeInTheDocument();
+  expect(state.completeRecovery).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Continue account recovery' }));
+  expect(screen.getByRole('form', { name: 'Set new password' })).toBeVisible();
+  expect(screen.getByLabelText('New password')).toHaveFocus();
 });

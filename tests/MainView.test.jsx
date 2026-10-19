@@ -61,3 +61,16 @@ it('opens the shared sign-in form from the anonymous trip promotion without requ
   expect(screen.getAllByRole('banner')).toHaveLength(1);
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+it('keeps the public weather draft mounted while the authentication card is open', async () => {
+  const user = userEvent.setup();
+  const auth = { isAuthenticated: false, user: null, loading: false, client: { auth: {} }, completeRecovery: vi.fn() };
+  render(<AuthContext.Provider value={auth}><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
+  const city = screen.getByLabelText('City:');
+  fireEvent.change(city, { target: { value: 'Unsubmitted public city' } });
+  await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  expect(city).toBeInTheDocument(); expect(city).not.toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Close' }));
+  expect(city).toBeVisible(); expect(city).toHaveValue('Unsubmitted public city');
+  expect(fetchMock).not.toHaveBeenCalled();
+});

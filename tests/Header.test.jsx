@@ -49,3 +49,17 @@ it('keeps weather accessible during restoration and disables navigation during m
   rerender(renderHeader({ ...auth, loading: false }, { disabled: true }));
   for (const button of within(screen.getByRole('navigation', { name: 'Weather and trip' })).getAllByRole('button')) expect(button).toBeDisabled();
 });
+
+it('renders the card outside the shared header without duplicate header auth actions', async () => {
+  setup(); const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  const header = screen.getByRole('banner');
+  expect(within(header).queryByRole('navigation', { name: 'Authentication' })).not.toBeInTheDocument();
+  expect(within(header).queryByRole('form')).not.toBeInTheDocument();
+  expect(screen.getAllByRole('banner')).toHaveLength(1);
+  expect(screen.getByRole('form', { name: 'Sign in' })).toBeVisible();
+  const publicAccess = screen.getByRole('complementary', { name: 'Public weather access' });
+  await user.click(within(publicAccess).getByRole('button', { name: 'Weather Search' }));
+  expect(screen.queryByRole('form', { name: 'Sign in' })).not.toBeInTheDocument();
+  expect(within(header).getByRole('button', { name: 'Weather Search', exact: true })).toHaveFocus();
+});
