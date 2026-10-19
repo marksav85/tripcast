@@ -41,7 +41,7 @@ function WeatherDetails({ model }) {
 function WeatherDay({ date, day, requested }) {
   const dateLabel = formatCalendarDate(date);
   if (day?.status !== 'available') return <div className="trip-day trip-day-message">
-    <h4>{dateLabel}</h4>
+    <h5>{dateLabel}</h5>
     <p>{day?.status === 'unavailable' ? `Unavailable: ${day.reason.message}` : day?.status === 'error'
       ? `Retrieval error: ${day.error.message}` : requested ? 'Weather was not returned for this date.' : 'Weather not requested.'}</p>
   </div>;
@@ -69,11 +69,12 @@ export default function TripWeatherResults({ saved, weather }) {
   return <section aria-label="Trip weather" aria-busy={loading} className="trip-itinerary">
     <h3 className="sr-only">Trip weather</h3>
     {loading && <output className="trip-notice">Loading trip weather…</output>}
-    {error && <p className="trip-notice" role={error.code === 'CANCELLED' ? 'status' : 'alert'}>{error.message}{error.retryAfter !== undefined && ` Try again in ${error.retryAfter} seconds.`}</p>}
+    {error && <p className={`trip-notice${error.code === 'CANCELLED' ? '' : ' trip-notice-error'}`} role={error.code === 'CANCELLED' ? 'status' : 'alert'}>{error.message}{error.retryAfter !== undefined && ` Try again in ${error.retryAfter} seconds.`}</p>}
+    {!loading && !result && !error && <p className="trip-notice">Choose Get Weather to check the last saved itinerary. Unsaved edits are excluded.</p>}
     {result && <output className="trip-notice">{result.meta.partial ? 'Some dates could not be assessed. Refresh to retry.' : 'Weather assessment complete.'}{result.meta.mock && ' Local fixture weather.'}</output>}
     {saved.draft.destinations.map((destination, index) => <section key={destination.position} className={`trip-destination trip-destination-${index % 3}`} aria-label={`${destination.cityName}, ${destination.countryCode} — Leg ${index + 1}`}>
       <header className="trip-destination-header">
-        <div><h3>{destination.cityName}, {destination.countryCode}</h3>
+        <div><h4>{destination.cityName}, {destination.countryCode}</h4>
           <p>Weather dates: {formatCalendarDate(destination.arrivalDate)} – {formatCalendarDate(addCalendarDays(destination.departureDate, -1))}</p>
           <p>{coveredDayCount(destination.arrivalDate, destination.departureDate)} covered {coveredDayCount(destination.arrivalDate, destination.departureDate) === 1 ? 'day' : 'days'}</p>
         </div><span className="trip-leg">Leg {index + 1} of {saved.draft.destinations.length}</span>

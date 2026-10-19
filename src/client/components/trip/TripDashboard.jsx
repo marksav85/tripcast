@@ -4,11 +4,12 @@ import useTripWeather from '../../hooks/useTripWeather.js';
 import { coveredDayCount } from '../../../shared/trip.js';
 import { formatCalendarDate } from '../../../shared/calendar.js';
 import Header from '../Header.jsx';
+import DeleteTripDialog from './DeleteTripDialog.jsx';
 import TripEmptyState from './TripEmptyState.jsx';
 import TripEditor from './TripEditor.jsx';
 import TripWeatherResults, { TripWeatherActions } from './TripWeatherResults.jsx';
 
-const buttonClass = 'border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 disabled:opacity-50';
+const buttonClass = 'trip-button';
 
 /** Mount only for an authenticated account, keyed by ownerId. Both lifecycles outlive view changes. */
 export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
@@ -45,7 +46,7 @@ export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
       {showEmpty && <p className="trip-empty-eyebrow">Personal itinerary · Your workspace</p>}
       <h2 ref={heading} tabIndex={-1} className={view === 'editor' ? 'editor-page-title' : 'text-2xl font-bold'}>{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>
       {showEmpty && <p className="trip-empty-intro">Your saved multi-destination itinerary and weather throughout your journey.</p>}
-      <p className={showEmpty ? 'sr-only' : undefined} role={error ? 'alert' : 'status'}>{message}</p>
+      <p className={showEmpty ? 'sr-only' : error ? 'trip-notice trip-notice-error' : undefined} role={error ? 'alert' : 'status'}>{message}</p>
       {!busy && (error || !loaded) && <button type="button" className={buttonClass} onClick={reload}>{loaded ? 'Reload saved trip' : 'Retry loading trip'}</button>}
       {loaded && view === 'editor' && <>
         <fieldset disabled={Boolean(busy)} className="min-w-0">
@@ -62,9 +63,8 @@ export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
           <p>{coveredDayCount(saved.draft.startDate, saved.draft.endDate)} covered days · {saved.draft.destinations.length} destinations. Departure is excluded from weather days.</p>
           <div className="trip-actions">
             <button type="button" className="trip-button" disabled={Boolean(busy)} onClick={() => setView('editor')}>Edit Trip</button>
-            <button type="button" className="trip-button trip-button-delete" disabled={Boolean(busy) || blocked} onClick={() => {
-              if (window.confirm('Delete this saved trip? This also discards local edits.')) void remove();
-            }}>Delete Trip</button>
+            <DeleteTripDialog title={saved.draft.title} disabled={Boolean(busy) || blocked} onConfirm={remove}
+              errorMessage={error ? message : null} onDeletedFocus={() => heading.current?.focus()} />
             <TripWeatherActions weather={weather} disabled={Boolean(busy) || blocked} />
           </div>
         </section>

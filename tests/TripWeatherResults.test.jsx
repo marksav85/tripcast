@@ -88,3 +88,9 @@ it('uses returned standard classification and night icons without highlighting o
   expect(screen.queryByText('Older cached weather')).not.toBeInTheDocument();
   expect(screen.queryByText(/% precipitation chance/)).not.toBeInTheDocument();
 });
+
+it('keeps destination headings below the Trip weather section heading', () => {
+  setup();
+  expect(screen.getByRole('heading', { name: 'Trip weather', level: 3 })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Paris, FR', level: 4 })).toBeVisible();
+});

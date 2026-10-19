@@ -100,10 +100,10 @@ it('preserves failed saves and confirms conflict reload before replacing edits a
 });
 it('confirms deletion, preserves trip/weather on failure, and cancels weather on success', async () => {
   deleteMyTrip.mockResolvedValueOnce(fail()).mockResolvedValueOnce(ok({ deleted: true })); setup(); await dashboard(); await weather();
-  window.confirm.mockReturnValueOnce(false); click('Delete Trip'); expect(deleteMyTrip).not.toHaveBeenCalled();
-  click('Delete Trip'); await screen.findByRole('alert'); expect(screen.getByText(/Some dates could not/)).toBeVisible();
+  click('Delete Trip'); expect(deleteMyTrip).not.toHaveBeenCalled(); click('Cancel');
+  click('Delete Trip'); click('Delete Trip'); await screen.findByRole('alert'); click('Cancel'); expect(screen.getByText(/Some dates could not/)).toBeVisible();
   const pending = deferred(); getTripWeather.mockReturnValue(pending.promise); click('Refresh Weather'); const signal = getTripWeather.mock.calls[1][0].signal;
-  click('Delete Trip'); expect(await screen.findByRole('region', { name: 'No saved trip' })).toBeVisible(); expect(signal.aborted).toBe(true);
+  click('Delete Trip'); click('Delete Trip'); expect(await screen.findByRole('region', { name: 'No saved trip' })).toBeVisible(); expect(signal.aborted).toBe(true);
   await act(async () => pending.resolve({ ok: true, ...weatherEnvelope(), error: null })); expect(screen.queryByRole('region', { name: 'Trip weather' })).not.toBeInTheDocument();
 });
 it('presents partial outcomes, cancellation and safe request errors', async () => {
@@ -211,4 +211,60 @@ it('withholds the empty prompt after a failed first save until a successful relo
   expect(screen.queryByRole('region', { name: 'No saved trip' })).not.toBeInTheDocument();
   loadMyTrip.mockResolvedValueOnce(ok(null)); click('Reload saved trip');
   expect(await screen.findByRole('button', { name: 'Create Your Trip' })).toBeEnabled();
+});
+
+it('opens the delete dialog safely, supports Escape and Cancel, and restores trigger focus', async () => {
+  const user = userEvent.setup(); setup(); await dashboard();
+  const trigger = screen.getByRole('button', { name: 'Delete Trip' });
+  await user.click(trigger);
+  const dialog = screen.getByRole('alertdialog', { name: 'Delete this trip?' });
+  expect(within(dialog).getByText(/“Summer” will be permanently deleted/)).toBeVisible();
+  expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  expect(deleteMyTrip).not.toHaveBeenCalled(); expect(window.confirm).not.toHaveBeenCalled();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  await waitFor(() => expect(trigger).toHaveFocus());
+  await user.keyboard('{Enter}'); await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(deleteMyTrip).not.toHaveBeenCalled();
+});
+it('confirms deletion once, blocks duplicates while pending, and focuses My Trip after success', async () => {
+  const user = userEvent.setup(); const pending = deferred(); deleteMyTrip.mockReturnValueOnce(pending.promise);
+  setup(); await dashboard(); await user.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  const dialog = screen.getByRole('alertdialog');
+  const confirm = within(dialog).getByRole('button', { name: 'Delete Trip' });
+  await user.dblClick(confirm);
+  expect(deleteMyTrip).toHaveBeenCalledExactlyOnceWith({ tripId: savedTrip().id, expectedRevision: 1 });
+  expect(within(dialog).getByRole('button', { name: 'Deleting…' })).toBeDisabled();
+  expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  await user.keyboard('{Escape}'); expect(dialog).toBeInTheDocument();
+  await act(async () => pending.resolve(ok({ deleted: true })));
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  expect(await screen.findByRole('region', { name: 'No saved trip' })).toBeVisible();
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'My Trip' })).toHaveFocus());
+});
+it('announces deletion failure in the dialog, permits retry, and retains conflict recovery', async () => {
+  const user = userEvent.setup(); deleteMyTrip.mockResolvedValueOnce(fail()).mockResolvedValueOnce(fail('CONFLICT'));
+  setup(); await dashboard(); await user.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  await user.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable');
+  expect(screen.getByRole('button', { name: 'Delete Trip' })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Reload your saved trip.');
+  expect(screen.getByRole('button', { name: 'Delete Trip' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.getByRole('button', { name: 'Delete Trip' })).toBeDisabled();
+  loadMyTrip.mockResolvedValueOnce(ok(savedTrip(4, 'Latest'))); click('Reload saved trip');
+  expect(await screen.findByRole('heading', { name: 'Latest' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Delete Trip' })).toBeEnabled();
+});
+it('isolates an in-flight deletion and its dialog after account switching', async () => {
+  const pending = deferred(); deleteMyTrip.mockReturnValueOnce(pending.promise);
+  const { rerender, view } = setup(); await dashboard(); click('Delete Trip'); click('Delete Trip');
+  loadMyTrip.mockResolvedValueOnce(ok(savedTrip(1, 'Account B'))); rerender(view('b')); click('My Trip');
+  expect(await screen.findByRole('heading', { name: 'Account B' })).toBeVisible();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  await act(async () => pending.resolve(ok({ deleted: true })));
+  expect(screen.getByRole('heading', { name: 'Account B' })).toBeVisible();
+  expect(deleteMyTrip).toHaveBeenCalledTimes(1);
 });

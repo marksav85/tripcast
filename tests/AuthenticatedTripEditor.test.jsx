@@ -83,9 +83,11 @@ it.each(['SERVICE_UNAVAILABLE', 'INVALID_TRIP', 'UNAUTHENTICATED'])('preserves d
 });
 it('requires deletion confirmation and clears the editor after success', async () => {
   deleteMyTrip.mockResolvedValue(ok({ id, deleted: true })); setup(); await screen.findByDisplayValue('Summer');
-  window.confirm.mockReturnValueOnce(false); fireEvent.click(screen.getByText('Delete Trip'));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' }));
   expect(deleteMyTrip).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByText('Delete Trip')); await screen.findByText(/Trip deleted/);
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' })); await screen.findByText(/Trip deleted/);
   expect(deleteMyTrip).toHaveBeenCalledExactlyOnceWith({ tripId: id, expectedRevision: 1 });
   expect(screen.getByLabelText('Trip title')).toHaveValue('');
   expect(screen.queryByText('Delete Trip')).not.toBeInTheDocument();
@@ -93,16 +95,24 @@ it('requires deletion confirmation and clears the editor after success', async (
 it('preserves draft and disables conflicting operations while delete is pending or fails', async () => {
   const pending = deferred(); deleteMyTrip.mockReturnValue(pending.promise);
   setup(); await screen.findByDisplayValue('Summer'); changeTitle('Unsaved');
-  fireEvent.click(screen.getByText('Delete Trip')); save();
+  const saveButton = screen.getByRole('button', { name: 'Save Trip' });
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  expect(saveButton).toBeDisabled(); fireEvent.click(saveButton);
   expect(saveMyTrip).not.toHaveBeenCalled();
   await act(async () => pending.resolve(fail()));
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(screen.getByLabelText('Trip title')).toHaveValue('Unsaved'); expect(screen.getByText('Delete Trip')).toBeEnabled();
 });
 it.each(['save', 'delete'])('handles %s conflict and confirms before reload replaces edits', async operation => {
   saveMyTrip.mockResolvedValue(fail('CONFLICT')); deleteMyTrip.mockResolvedValue(fail('CONFLICT'));
   setup(); await screen.findByDisplayValue('Summer'); changeTitle('Unsaved');
-  if (operation === 'save') save(); else fireEvent.click(screen.getByText('Delete Trip'));
+  if (operation === 'save') save(); else {
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  }
   await screen.findByRole('alert');
+  if (operation === 'delete') fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(screen.getByLabelText('Trip title')).toHaveValue('Unsaved');
   expect(screen.getByRole('button', { name: 'Save Trip' })).toBeDisabled();
   expect(screen.getByText('Delete Trip')).toBeDisabled();
