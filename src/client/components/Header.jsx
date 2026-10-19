@@ -1,18 +1,35 @@
-export default function Header({ compact = false }) {
-  if (compact) return <header className="w-full border-b bg-white px-6 py-4">
-    <div className="max-w-5xl mx-auto flex items-center gap-3 text-sky-800">
-      <h1 className="text-xl font-bold tracking-tight">TripCast</h1>
-      <p className="text-sm text-slate-600">Your travel weather companion</p>
+import { useRef, useState } from 'react';
+import { useAuth } from '../auth/context.js';
+import AuthPanel from './auth/AuthPanel.jsx';
+
+export default function Header({ view = 'public', onNavigate = () => {}, disabled = false }) {
+  const { isAuthenticated, loading } = useAuth();
+  const [authView, setAuthView] = useState(null);
+  const trigger = useRef(null);
+  function changeAuthView(next, event) {
+    if (next && event) trigger.current = event.currentTarget;
+    setAuthView(next);
+    if (!next) trigger.current?.focus();
+  }
+  function navigate(next, event) {
+    if (next === 'dashboard' && !isAuthenticated) {
+      trigger.current = event.currentTarget;
+      setAuthView('signin');
+    } else {
+      onNavigate(next);
+      changeAuthView(null);
+    }
+  }
+  return <header className="shell-header">
+    <div className="shell-bar">
+      <button type="button" className="shell-brand" disabled={disabled} onClick={(event) => navigate('public', event)} aria-label="TripCast — Weather Search">
+        <span className="shell-brand-icon" aria-hidden="true">✧</span><span>TripCast</span>
+      </button>
+      <nav aria-label="Weather and trip" className="shell-navigation">
+        <button type="button" aria-current={view === 'public' ? 'page' : undefined} disabled={disabled} onClick={(event) => navigate('public', event)}>Weather Search</button>
+        <button type="button" aria-current={view !== 'public' ? 'page' : undefined} disabled={disabled || loading} onClick={(event) => navigate('dashboard', event)}>My Trip</button>
+      </nav>
+      <AuthPanel view={authView} onViewChange={changeAuthView} />
     </div>
   </header>;
-  return (
-    <header className="w-full bg-blue-600 text-white p-6">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-2">My Travel App</h1>
-        <p className="text-lg font-light">
-          The 3 W&apos;s of travelling: Where, When and Weather
-        </p>
-      </div>
-    </header>
-  );
 }

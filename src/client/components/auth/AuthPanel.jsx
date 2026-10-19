@@ -39,16 +39,21 @@ function AuthForm({ mode, client, finish }) {
     } catch { if (active.current) setMessage(serviceError); }
     finally { busy.current = false; if (active.current) setPending(false); }
   }
-  return <form onSubmit={submit} noValidate className="space-y-3" aria-label={headings[mode]}>
+  const formRef = useRef(null);
+  useEffect(() => { formRef.current?.querySelector('input')?.focus(); }, []);
+  return <form ref={formRef} onSubmit={submit} noValidate className="space-y-3" aria-label={headings[mode]}>
     {mode !== 'reset' && <div><label htmlFor="auth-email">Email</label><input id="auth-email" className="border rounded p-2 w-full" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={pending} required /></div>}
     {mode !== 'forgot' && <div><label htmlFor="auth-password">{mode === 'reset' ? 'New password' : 'Password'}</label><input id="auth-password" className="border rounded p-2 w-full" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} value={password} onChange={(e) => setPassword(e.target.value)} disabled={pending} required />{mode !== 'signin' && <p>Use at least 6 characters.</p>}</div>}
     <button className="bg-blue-600 text-white rounded px-4 py-2" disabled={pending}>{pending ? 'Please wait…' : headings[mode]}</button>
     <output className="block" aria-live="polite">{message}</output>
   </form>;
 }
-export default function AuthPanel() {
+export default function AuthPanel({ view: controlledView, onViewChange }) {
   const { client, user, loading, recoveryStatus, callbackError, completeRecovery } = useAuth();
-  const [view, setView] = useState(null); const [message, setMessage] = useState('');
+  const [localView, setLocalView] = useState(null);
+  const view = controlledView === undefined ? localView : controlledView;
+  const setView = onViewChange ?? setLocalView;
+  const [message, setMessage] = useState('');
   const [signingOut, setSigningOut] = useState(false); const logoutBusy = useRef(false);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
@@ -62,15 +67,15 @@ export default function AuthPanel() {
   }
   if (!client) return <AuthAvailability />;
   const mode = recoveryStatus === 'ready' ? 'reset' : view;
-  return <section aria-label="Account" className="p-4 bg-white border-b">
+  return <section aria-label="Account" className="shell-account">
     {recoveryStatus === 'pending' ? <output>Checking recovery link…</output>
       : recoveryStatus === 'error' ? <><output>{callbackError ?? 'This link is invalid or expired. Request a new email.'}</output><button className="ml-3 underline" onClick={() => { completeRecovery(); setView('forgot'); }}>Request another recovery email</button></>
       : <>
-        {user && !recoveryStatus ? <div>Signed in as {user.email ?? 'your account'}. <button className="underline" onClick={signOut} disabled={signingOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button></div>
-          : !loading && <nav aria-label="Authentication"><button className="mr-4 underline" onClick={() => setView('signin')}>Sign in</button><button className="mr-4 underline" onClick={() => setView('register')}>Create account</button><button className="underline" onClick={() => setView('forgot')}>Forgot password</button></nav>}
+        {user && !recoveryStatus ? <div className="shell-account-controls"><span className="shell-account-name" title={user.email}>Signed in as {user.email ?? 'your account'}</span><button className="shell-action" onClick={signOut} disabled={signingOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button></div>
+          : !loading && <nav aria-label="Authentication" className="shell-auth-actions"><button className="shell-action" onClick={(event) => setView('signin', event)}>Sign in</button><button className="shell-action" onClick={(event) => setView('register', event)}>Create account</button><button className="shell-recovery-action" onClick={(event) => setView('forgot', event)}>Forgot password</button></nav>}
         {loading && !recoveryStatus && <output>Restoring session…</output>}
-        {mode && (!user || mode === 'reset') && <div className="max-w-md mx-auto my-4"><h2 className="text-xl font-bold mb-3">{headings[mode]}</h2><AuthForm key={mode + (user?.id ?? '')} mode={mode} client={client} finish={(text) => { completeRecovery(); setView(null); setMessage(text); }} />{mode !== 'reset' && <button className="mt-3 underline" onClick={() => setView(null)}>Close</button>}</div>}
+        {mode && (!user || mode === 'reset') && <div className="shell-auth-form"><h2 className="text-xl font-bold mb-3">{headings[mode]}</h2><AuthForm key={mode + (user?.id ?? '')} mode={mode} client={client} finish={(text) => { completeRecovery(); setView(null); setMessage(text); }} />{mode !== 'reset' && <button className="mt-3 underline" onClick={() => setView(null)}>Close</button>}</div>}
       </>}
-    <output className="block">{message}</output>
+    <output className="shell-account-message" aria-live="polite">{message}</output>
   </section>;
 }

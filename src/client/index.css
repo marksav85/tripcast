@@ -2,6 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-primary: #006194;
+  --color-primary-hover: #004b73;
+  --color-secondary: #006591;
+  --color-accent: #cce5ff;
+  --color-canvas: #faf8ff;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f2f3ff;
+  --color-surface-active: #eaedff;
+  --color-text: #131b2e;
+  --color-text-muted: #3f4850;
+  --color-border: #e2e7f0;
+  --color-outline: #bfc7d2;
+  --shadow-surface: 0 1px 3px #131b2e08, 0 4px 12px -2px #131b2e0a;
+  --shadow-floating: 0 8px 24px -4px #131b2e12;
+  --radius-control: .5rem;
+  --radius-card: 1rem;
+  --radius-pill: 9999px;
+  --font-body: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --space-xs: .25rem;
+  --space-sm: .5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --page-width: 90rem;
+  --page-gutter: clamp(1rem, 3vw, 2rem);
+}
+body { background: var(--color-canvas); color: var(--color-text); font-family: var(--font-body); }
+.app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+.shell-header { background: var(--color-surface); border-bottom: 1px solid var(--color-border); box-shadow: var(--shadow-surface); }
+.shell-bar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-lg); max-width: var(--page-width); margin: auto; padding: var(--space-md) var(--page-gutter); }
+.shell-brand { display: flex; align-items: center; gap: var(--space-sm); font: 700 1.125rem var(--font-heading); letter-spacing: -.025em; }
+.shell-brand-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: var(--radius-control); color: var(--color-primary); background: var(--color-accent); font-size: 1.75rem; }
+.shell-navigation, .shell-auth-actions, .shell-account-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.shell-navigation button, .shell-action { min-height: 2.75rem; padding: .625rem 1rem; border-radius: var(--radius-pill); font-size: .8125rem; font-weight: 500; }
+.shell-navigation button { color: var(--color-text-muted); }
+.shell-navigation button[aria-current="page"] { background: var(--color-surface-active); color: var(--color-primary); font-weight: 600; text-decoration: underline; text-underline-offset: .3em; }
+.shell-navigation button:hover, .shell-action:hover { background: var(--color-surface-soft); }
+.shell-auth-actions .shell-action:first-child { background: var(--color-primary); color: var(--color-surface); }
+.shell-auth-actions .shell-action:first-child:hover { background: var(--color-primary-hover); }
+.shell-account { display: contents; }
+.shell-account-controls { justify-content: end; min-width: 0; }
+.shell-account-name { max-width: 13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: var(--color-text-muted); }
+.shell-account-controls .shell-action { border: 1px solid var(--color-border); }
+.shell-recovery-action { min-height: 2.75rem; font-size: .75rem; text-decoration: underline; }
+.shell-auth-form { grid-column: 1 / -1; width: 100%; max-width: 28rem; margin: var(--space-md) auto; padding: var(--space-lg); border: 1px solid var(--color-border); border-radius: var(--radius-card); box-shadow: var(--shadow-surface); }
+.shell-auth-form h2 { font-family: var(--font-heading); }
+.shell-account-message { grid-column: 1 / -1; font-size: .8125rem; overflow-wrap: anywhere; }
+.shell-account-message:empty { display: none; }
+.shell-header :is(button, input):focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+.shell-header button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 900px) {
+  .shell-bar { grid-template-columns: 1fr auto; gap: var(--space-sm); }
+  .shell-navigation { grid-row: 2; grid-column: 1 / -1; }
+  .shell-account-controls, .shell-auth-actions { grid-row: 1; grid-column: 2; }
+  .shell-account-name { max-width: 9rem; }
+}
+@media (max-width: 480px) {
+  .shell-bar { grid-template-columns: minmax(0, 1fr); }
+  .shell-navigation { grid-row: 2; }
+  .shell-account-controls, .shell-auth-actions { grid-row: 3; grid-column: 1; justify-content: start; }
+  .shell-account-name { max-width: min(13rem, 55vw); }
+  .shell-auth-form { padding: var(--space-md); }
+}
+
 .travel-background { background-image: url("/media/travel_camper.jpg"); }
 
 /* Stitch dashboard tokens are scoped so the public weather and editor retain their styles. */

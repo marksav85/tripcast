@@ -6,11 +6,10 @@ import TripDashboard from './components/trip/TripDashboard.jsx';
 function App() {
   const auth = useAuth();
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header compact={auth.isAuthenticated} />
+    <div className="app-shell">
       {auth.isAuthenticated
         ? <TripDashboard key={auth.user.id} ownerId={auth.user.id} publicWeather={<MainView />} />
-        : <main><MainView /></main>}
+        : <><Header /><main><MainView /></main></>}
     </div>
   );
 }

@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 it('preserves anonymous public weather and does not load trips during session restoration', async () => {
   const { rerender, view } = setup(null, true);
-  expect(screen.queryByRole('button', { name: 'My Trip' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'My Trip' })).toBeDisabled();
   expect(loadMyTrip).not.toHaveBeenCalled();
   fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
   change('City:', 'Berlin'); change('Date of travel:', daySummary.date); click('Submit'); await screen.findByText('Weather loaded.');
@@ -52,7 +52,7 @@ it('preserves the same lifecycle and public form across repeated navigation', as
   expect(within(screen.getByRole('region', { name: 'Saved trip overview' })).getByText(/3 covered days/)).toBeVisible();
   expect(screen.getByText('Weather dates: 1 June 2027 – 3 June 2027')).toBeVisible();
   await weather(); expect(getTripWeather).toHaveBeenCalledWith({ draft: tripDraft, expectedUserId: 'a', signal: expect.any(AbortSignal) });
-  click('Single-city weather'); expect(screen.getByLabelText('City:')).toHaveValue('Unsubmitted public city');
+  click('Weather Search'); expect(screen.getByLabelText('City:')).toHaveValue('Unsubmitted public city');
   click('My Trip'); expect(screen.getByText(/Some dates could not/)).toBeVisible();
   expect(loadMyTrip).toHaveBeenCalledTimes(1); expect(getTripWeather).toHaveBeenCalledTimes(1);
 });
@@ -67,9 +67,9 @@ it('preserves weather through unsaved edits and Discard, with focus moving betwe
 it('confirms Back and navigation without saving, retaining edits if leaving is declined', async () => {
   setup(); await dashboard(); click('Edit Trip'); change('Trip title', 'Unsaved');
   window.confirm.mockReturnValueOnce(false); click('Back to My Trip'); expect(screen.getByLabelText('Trip title')).toHaveValue('Unsaved');
-  window.confirm.mockReturnValueOnce(false); click('Single-city weather'); expect(screen.getByLabelText('Trip title')).toBeVisible();
+  window.confirm.mockReturnValueOnce(false); click('Weather Search'); expect(screen.getByLabelText('Trip title')).toBeVisible();
   click('Back to My Trip'); click('Edit Trip'); expect(screen.getByLabelText('Trip title')).toHaveValue('Summer');
-  click('Single-city weather'); expect(screen.getByLabelText('City:')).toBeVisible(); expect(saveMyTrip).not.toHaveBeenCalled(); expect(deleteMyTrip).not.toHaveBeenCalled();
+  click('Weather Search'); expect(screen.getByLabelText('City:')).toBeVisible(); expect(saveMyTrip).not.toHaveBeenCalled(); expect(deleteMyTrip).not.toHaveBeenCalled();
 });
 it('returns to dashboard after saving the canonical revision and invalidates weather', async () => {
   saveMyTrip.mockResolvedValue(ok(savedTrip(2, 'Canonical'))); setup(); await dashboard(); await weather();

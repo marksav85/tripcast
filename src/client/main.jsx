@@ -10,7 +10,6 @@ import { lazy, Suspense } from "react";
 const TripEditorPreview = import.meta.env.DEV ? lazy(() => import("./components/trip/TripEditorPreview.jsx")) : null;
 import Header from "./components/Header.jsx";
 import MainView from "./components/MainView.jsx";
-import AuthPanel from "./components/auth/AuthPanel.jsx";
 
 config.autoAddCss = false;
 // Mutually exclusive entry: the development preview never mounts alongside My Trip.
@@ -18,7 +17,6 @@ const previewMode = import.meta.env.DEV && new URLSearchParams(window.location.s
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <AuthProvider>
-    <AuthPanel />
     <WeatherProvider>
       {previewMode ? <><Suspense fallback={<output>Loading local editor…</output>}><TripEditorPreview /></Suspense><Header /><MainView /></> : <App />}
     </WeatherProvider>

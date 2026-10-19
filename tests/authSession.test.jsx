@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../src/client/context/AuthContextProvider.jsx';
 import { useAuth } from '../src/client/auth/context.js';
 import { readSupabaseConfig } from '../src/client/auth/config.js';
-import AuthAvailability from '../src/client/components/AuthAvailability.jsx';
 import App from '../src/client/App.jsx';
 import { WeatherProvider } from '../src/client/context/WeatherContextProvider.jsx';
 import { deferred, berlin, daySummary } from './fixtures/weather';
@@ -91,7 +90,7 @@ describe('session lifecycle', () => {
   });
   it('preserves the real public weather flow while authentication is unavailable', async () => {
     fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
-    render(<AuthProvider client={null} configurationError="Authentication is unavailable."><AuthAvailability /><WeatherProvider><App /></WeatherProvider></AuthProvider>);
+    render(<AuthProvider client={null} configurationError="Authentication is unavailable."><WeatherProvider><App /></WeatherProvider></AuthProvider>);
     expect(screen.getByText(/Public weather remains available/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('City:'), { target: { value: 'Berlin' } });
     fireEvent.change(screen.getByLabelText('Date of travel:'), { target: { value: daySummary.date } });

@@ -3,6 +3,7 @@ import useSavedTrip from '../../hooks/useSavedTrip.js';
 import useTripWeather from '../../hooks/useTripWeather.js';
 import { coveredDayCount } from '../../../shared/trip.js';
 import { formatCalendarDate } from '../../../shared/calendar.js';
+import Header from '../Header.jsx';
 import TripEditor from './TripEditor.jsx';
 import TripWeatherResults, { TripWeatherActions } from './TripWeatherResults.jsx';
 
@@ -36,10 +37,7 @@ export default function TripDashboard({ ownerId, publicWeather }) {
   }
   const mutationPending = busy === 'saving' || busy === 'deleting';
   return <>
-    <nav aria-label="Weather and trip" className="flex flex-wrap gap-3 p-4 border-b bg-white">
-      <button type="button" className={buttonClass} aria-current={view === 'public' ? 'page' : undefined} disabled={mutationPending} onClick={() => navigate('public')}>Single-city weather</button>
-      <button type="button" className={buttonClass} aria-current={view !== 'public' ? 'page' : undefined} disabled={mutationPending} onClick={() => navigate('dashboard')}>My Trip</button>
-    </nav>
+    <Header view={view} onNavigate={navigate} disabled={mutationPending} />
     <div hidden={view !== 'public'} ref={publicRegion} tabIndex={-1} aria-label="Single-city weather">{publicWeather}</div>
     <main hidden={view === 'public'} className={view === 'dashboard' ? 'trip-dashboard' : 'w-full max-w-5xl mx-auto p-4 md:p-6 space-y-4 break-words'}>
       <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>
