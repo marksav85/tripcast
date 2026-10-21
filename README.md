@@ -196,7 +196,7 @@ Wrangler already declares these non-secret production variables:
 - `SUPABASE_JWT_ALGORITHMS=ES256`
 - `STAGE=production`, `MOCK_PROVIDER=false`
 
-The only application Worker secret is `OPENWEATHER_API_KEY`; set it for the
+The weather-provider Worker secret is `OPENWEATHER_API_KEY`; set it for the
 `tripcast` Worker via the Cloudflare dashboard's Worker secret settings
 (or `npx wrangler secret put OPENWEATHER_API_KEY` once the Worker
 exists). It is never a frontend build variable. Existing caching and request
@@ -237,7 +237,7 @@ separate owner action, not part of routine deployment or maintenance.
 | Cloudflare GitHub build variables | Hosted VITE URL/key; ignored local files do not reach CI |
 | Ignored `.dev.vars` / `.dev.vars.local` | Local Worker bindings only; not production secret provisioning |
 | `wrangler.jsonc` top-level `vars` | Public production stage and JWT verification settings |
-| `tripcast` runtime secret | `OPENWEATHER_API_KEY`; never a VITE build variable |
+| `tripcast` runtime secrets | `OPENWEATHER_API_KEY` for weather; `SUPABASE_SECRET_KEY` for account deletion; never VITE build variables |
 
 Keep the existing local binding files intact. `npm run dev:worker` selects the local
 Wrangler environment. Production Supabase Auth callbacks use the public origin and
@@ -276,3 +276,38 @@ remain intact. Realtime is unused, so no Supabase WebSocket origin is allowed.
 
 References: [Vite env precedence](https://vite.dev/guide/env-and-mode),
 [Cloudflare Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
+
+## Account deletion
+
+Signed-in users have a red outlined **Delete account** header button beside Sign
+out, separated by extra spacing. The confirmation dialog requires typing `DELETE`.
+Only after server-confirmed deletion does the client sign out locally and return
+to `/`. A rejected or unconfirmed deletion keeps the session and shows a sanitized
+error; a session-cleanup error after confirmed deletion is reported separately.
+
+`DELETE /api/account` accepts only `{ "confirmation": "DELETE" }`. The Worker
+verifies the bearer JWT with the existing issuer/JWKS/audience/ES256 rules and
+checks the current Auth user through Supabase before a single hard-delete call.
+The user ID always comes from verified identity, never browser input. Existing
+`auth.users → trips → trip_destinations` foreign keys use `ON DELETE CASCADE`;
+there is no separate trip-delete step that could leave a partially deleted account.
+
+Required production configuration (not configured by this change): add a
+**Worker runtime secret** named `SUPABASE_SECRET_KEY` on **`tripcast`**, containing
+this Supabase project's `sb_secret_` administrative key. Never put it in a VITE
+variable, frontend env file, source, logs or public Wrangler vars. The administrative
+destination is pinned to the current hosted project and fails closed if the issuer
+or secret is missing/mismatched. Normal Docker development remains unchanged;
+account deletion deliberately requires the hosted configuration and is not enabled
+against local Docker by this implementation.
+
+No live deletion was performed during development. Before enabling this in
+production, verify the deployed cascade constraints match the migration, then
+separately authorize a disposable-user deletion smoke test. Supabase Storage is
+not used here; if introduced later, owned Storage objects can prevent Auth deletion.
+Existing access JWTs can remain valid until expiry, though refresh sessions are
+removed and this deletion endpoint checks that the user still exists. This change
+does not redesign token revocation for other endpoints.
+
+References: [Supabase administrative deletion](https://supabase.com/docs/reference/javascript/auth-admin-deleteuser),
+[User data and cascade deletion](https://supabase.com/docs/guides/auth/managing-user-data).

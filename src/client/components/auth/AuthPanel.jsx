@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/context.js';
 import { authRedirectUrl } from '../../auth/callback.js';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash, faSun, faCloudSun, faLocationDot, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import DeleteAccountDialog from './DeleteAccountDialog.jsx';
 import AuthAvailability from '../AuthAvailability.jsx';
 
 const headings = { signin: 'Sign in', register: 'Create account', forgot: 'Forgot password', reset: 'Set new password' };
@@ -80,6 +81,7 @@ export default function AuthPanel({ view: controlledView, onViewChange, onWeathe
   const [message, setMessage] = useState('');
   const [recoveryHidden, setRecoveryHidden] = useState(false);
   const stageHeading = useRef(null);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [signingOut, setSigningOut] = useState(false); const logoutBusy = useRef(false);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
@@ -104,7 +106,7 @@ export default function AuthPanel({ view: controlledView, onViewChange, onWeathe
   const controls = <section aria-label="Account" className="shell-account">
     {!client ? <AuthAvailability />
       : recoveryStatus ? !showCard && <button type="button" className="shell-action" onClick={() => setRecoveryHidden(false)}>Continue account recovery</button>
-      : user ? <div className="shell-account-controls"><span className="shell-account-name" title={user.email}>Signed in as {user.email ?? 'your account'}</span><button className="shell-action" onClick={signOut} disabled={signingOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button></div>
+      : user ? <div className="shell-account-controls"><span className="shell-account-name" title={user.email}>Signed in as {user.email ?? 'your account'}</span><button className="shell-action" onClick={signOut} disabled={signingOut || deletingAccount}>{signingOut ? 'Signing out…' : 'Sign out'}</button><DeleteAccountDialog client={client} disabled={signingOut} onBusyChange={setDeletingAccount} /></div>
       : loading ? <output>Restoring session…</output>
       : <nav hidden={showCard} aria-label="Authentication" className="shell-auth-actions">
         <button className="shell-action" onClick={(event) => setView('signin', event)}>Sign in</button>

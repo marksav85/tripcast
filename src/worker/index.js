@@ -1,3 +1,4 @@
+import { deleteAccount } from './account.js';
 import { normalizeCandidates } from '../shared/locations.js';
 import { retrieveTripWeather } from './tripWeather.js';
 import { createWeatherRetrieval } from './weather.js';
@@ -7,7 +8,7 @@ import { ApiError, malformed } from './errors.js';
 import { createProvider } from './provider.js';
 import { jsonResponse, SECURITY_HEADERS } from './security.js';
 
-const routes = { '/api/geocode': 'GET', '/api/reverse-geocode': 'GET', '/api/weather': 'POST', '/api/trip-weather': 'POST' };
+const routes = { '/api/account': 'DELETE', '/api/geocode': 'GET', '/api/reverse-geocode': 'GET', '/api/weather': 'POST', '/api/trip-weather': 'POST' };
 const hour = 3600000;
 
 // Maps/concurrency controls are per isolate, bounded, and deliberately not a
@@ -66,6 +67,10 @@ export function createWorker(options = {}) {
         if (request.method !== routes[url.pathname]) return jsonResponse({ error: { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' } }, 405, { Allow: routes[url.pathname] });
         const origin = request.headers.get('Origin');
         if (origin && origin !== url.origin) throw new ApiError('ORIGIN_DENIED', 403, 'Cross-origin API requests are not allowed.');
+        if (url.pathname === '/api/account') {
+          rateLimit(request, url.pathname, 3);
+          return jsonResponse(await deleteAccount(request, env));
+        }
         if (url.pathname === '/api/trip-weather') {
           const ipLimit = tripLimit(env.TRIP_WEATHER_IP_LIMIT, 10);
           rateLimit(request, '/api/trip-weather:ip', ipLimit, undefined, tripLimits);

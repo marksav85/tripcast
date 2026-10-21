@@ -63,3 +63,12 @@ it('renders the card outside the shared header without duplicate header auth act
   expect(screen.queryByRole('form', { name: 'Sign in' })).not.toBeInTheDocument();
   expect(within(header).getByRole('button', { name: 'Weather Search', exact: true })).toHaveFocus();
 });
+it('places account deletion directly after sign out without an account settings page', async () => {
+  setup({ user: { id: 'a', email: 'a@example.test' }, isAuthenticated: true });
+  const signOut = screen.getByRole('button', { name: 'Sign out' });
+  const remove = screen.getByRole('button', { name: 'Delete account', exact: true });
+  expect(signOut.nextElementSibling).toBe(remove);
+  await userEvent.click(remove);
+  expect(screen.getByRole('alertdialog')).toBeVisible();
+  expect(screen.getByText(/account and saved trip will be permanently removed/)).toBeVisible();
+});

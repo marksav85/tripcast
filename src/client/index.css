@@ -475,3 +475,6 @@ body { background: var(--color-canvas); color: var(--color-text); font-family: v
 .trip-clothing-details h5 { font-weight: 600; margin-bottom: .375rem; }
 .trip-clothing-details ul { list-style: disc; padding-left: 1.25rem; margin: .375rem 0; }
 @media (max-width: 1000px) { .trip-clothing-primary { flex-basis: 100%; } }
+
+.shell-account-controls .shell-delete-account { margin-inline-start: 1rem; border-color: #ba1a1a; color: #ba1a1a; }
+.shell-account-controls .shell-delete-account:hover:not(:disabled) { background: #fff0ef; }
