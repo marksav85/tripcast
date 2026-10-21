@@ -9,10 +9,6 @@ const paths = {
   '/api/reverse-geocode': 'geo/1.0/reverse',
   '/api/weather': TIMELINE_PATH.slice(1),
 };
-function diagnostic(status, attempt, category) {
-  // Fixed fields only: URLs and raw errors can contain the provider credential.
-  try { console.info({ status, attempt, category }); } catch { /* Diagnostics must not affect requests. */ }
-}
 export function providerURL(route, input) {
   const url = new URL(paths[route], 'https://api.openweathermap.org/');
   const params = route === '/api/weather' ? { lat: input.lat, lon: input.lon, start: Date.parse(`${input.date}T00:00:00Z`) / 1000, units: 'metric', lang: 'en' }
@@ -75,14 +71,7 @@ export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
             const work = abortable(controller.signal, async () => {
               context?.startAttempt();
               calls += 1;
-              let response;
-              try {
-                response = await upstreamFetch(url.toString(), { redirect: 'manual', signal: controller.signal });
-              } catch (error) {
-                diagnostic(null, calls, controller.signal.aborted ? 'request_aborted' : 'fetch_exception');
-                throw error;
-              }
-              diagnostic(response.status, calls, 'upstream_response');
+              const response = await upstreamFetch(url.toString(), { redirect: 'manual', signal: controller.signal });
               controller.signal.throwIfAborted();
               // Workers supports manual, not error; never follow credential-bearing redirects.
               if (response.status >= 300 && response.status < 400) throw new ApiError('UPSTREAM_FAILURE', 502, 'Weather service failed. Please retry.');

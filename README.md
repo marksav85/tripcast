@@ -1,10 +1,13 @@
 # TripCast
 
-A React/Vite/Tailwind single-city weather lookup with editable dates, city
-selection, browser geolocation, safe reset/retry behavior and normalized daily
-measurements. Cloudflare Workers Static Assets serves the production build;
-a same-origin Worker owns provider access. Supabase/trips and the Stitch redesign
-are later phases.
+TripCast is live at https://tripcast.marksavilledesigns.com.
+Repository: [marksav85/tripcast](https://github.com/marksav85/tripcast).
+
+React/Vite/Tailwind frontend assets and the same-origin API deploy together as
+Cloudflare Worker **`tripcast`** with Static Assets. Supabase Cloud provides
+email/password authentication and user-owned trip persistence. The Worker accesses
+OpenWeather using an `OPENWEATHER_API_KEY` runtime secret; the browser never receives
+that credential. Saved trips include per-day weather and rule-based clothing advice.
 
 ## Runtime and installation
 
@@ -72,20 +75,21 @@ work. Keyboard city choice and reduced-motion behavior are preserved.
 ## Secrets and environment isolation
 
 Local fixture mode requires **no `.env` or `.dev.vars` file**. Safe examples are
-provided; `.env*`, `.dev.vars*` and `.wrangler/` are ignored except example files.
-Do not put weather credentials in browser settings or source. No browser
-configuration is currently required.
+provided; local `.env*`, `.dev.vars*` and `.wrangler/` files are ignored.
+Public `.env.production` defaults and example files are tracked. Browser authentication
+uses only the public Supabase URL and publishable key. Never put weather credentials
+in browser settings or source.
 
 Live integration uses only `OPENWEATHER_API_KEY` in a Worker secret binding.
 Local live validation, once separately approved, uses a gitignored `.dev.vars`
 file through a separately controlled path. Keep the local fixture configuration
-unchanged for ordinary development. Wrangler has explicit local/staging/production
-configuration; deployed/default settings disable fixtures. Fixtures also require
+unchanged for ordinary development. Wrangler has named local/staging environments
+and top-level production configuration; deployed/default settings disable fixtures. Fixtures also require
 a loopback request hostname, so deployed local configuration fails closed.
 A missing secret returns `SERVICE_UNCONFIGURED`, never fake success. No real key,
 Cloudflare account/domain, deployment token or external subscription is needed
-for fixture development. Staging/production secrets must be separately configured only
-after authorization. No deployment script or deployment is included.
+for fixture development. Runtime secrets belong to their individual Worker;
+production uses `tripcast`. The working manual deployment command is `npm run deploy`.
 
 ## Verification
 
@@ -155,7 +159,7 @@ deployed behavior remain separate readiness checks. No subscription changes or
 deployment are implied by this integration.
 
 
-## Portfolio deployment preparation (Phase 4C)
+## Production deployment
 
 Architecture: the existing Worker with Static Assets, at
 `https://tripcast.marksavilledesigns.com`. The production Worker is `tripcast`.
@@ -198,21 +202,19 @@ The only application Worker secret is `OPENWEATHER_API_KEY`; set it for the
 exists). It is never a frontend build variable. Existing caching and request
 limits remain unchanged; provider account caps remain an owner responsibility.
 
-Minimum owner actions:
+### Working manual deployment
 
-1. Confirm `marksavilledesigns.com` is an active zone in the intended Cloudflare
-   account, sign in with Wrangler, and check that the intended hostname has no
-   conflicting DNS record/Worker assignment.
-2. Supply the staging publishable build key and approve the production Worker
-   secret. Set Supabase Auth's Site URL to `https://tripcast.marksavilledesigns.com`
-   and allow the exact redirect `https://tripcast.marksavilledesigns.com/auth/callback`
-   for confirmation/recovery flows; retain required local callback URLs.
-3. After deployment approval, run `npm run deploy`. This builds first and deploys
-   with top-level configuration (Worker name `tripcast`). Ensure its
-   `OPENWEATHER_API_KEY` secret is configured before using weather features.
-   The declared Custom Domain activates at deployment; Cloudflare manages its
-   DNS and certificate. No manual CNAME is required. workers.dev and preview URLs
-   are disabled. Do not run deploy commands during preparation.
+```sh
+npm run deploy
+```
+
+This runs `npm run build && wrangler deploy` against top-level Worker `tripcast`.
+Use the intended Cloudflare account and no `CLOUDFLARE_ENV` override. The Custom
+Domain is already assigned to `tripcast`; routine deployment needs no DNS or secret
+changes. workers.dev and preview URLs remain disabled. Deployment requires owner
+authorization; a maintenance check should not execute this command.
+
+### GitHub automatic deployment
 
 Cloudflare GitHub integration for `tripcast`: use build command `npm run build`
 and deploy command `npx wrangler deploy` (no `--env production` or name override).
@@ -221,11 +223,50 @@ in its build settings. Remove any `CLOUDFLARE_ENV` environment override from the
 local deploy shell or GitHub build settings so top-level configuration is selected.
 These dashboard settings are not stored in this repository.
 
-Before the next deployment, confirm the Custom Domain is assigned to `tripcast`.
-If it is attached to `tripcast-production`, resolve that assignment separately:
-a deployment may conflict with or change the existing assignment. Runtime secrets
-belong to each Worker separately; confirm `OPENWEATHER_API_KEY` exists on `tripcast`.
-Removing the local environment block does not delete the redundant remote Worker.
+The former named production environment created a separate `tripcast-production`
+Worker. It is redundant and is not the deployment target. Its later removal is a
+separate owner action, not part of routine deployment or maintenance.
+
+### Environment boundaries
+
+| Location | Purpose |
+| --- | --- |
+| Ignored `.env.local` | Local Docker Supabase URL and publishable browser key for Vite development |
+| Tracked `.env.production` | Public hosted URL and deliberately blank key default |
+| Ignored `.env.production.local` | Hosted publishable key for local production builds |
+| Cloudflare GitHub build variables | Hosted VITE URL/key; ignored local files do not reach CI |
+| Ignored `.dev.vars` / `.dev.vars.local` | Local Worker bindings only; not production secret provisioning |
+| `wrangler.jsonc` top-level `vars` | Public production stage and JWT verification settings |
+| `tripcast` runtime secret | `OPENWEATHER_API_KEY`; never a VITE build variable |
+
+Keep the existing local binding files intact. `npm run dev:worker` selects the local
+Wrangler environment. Production Supabase Auth callbacks use the public origin and
+`/auth/callback`; retain local callbacks needed for Docker development.
+
+### Maintenance notes and pending CI investigation
+
+- Vite's existing chunk-size warning is non-blocking. Bundle splitting is deferred.
+- `tests/TripWeatherPreview.test.jsx` has two previously reproduced failures on
+  unchanged HEAD: “makes weather available after saving the first trip” and
+  “deletes weather together with the saved baseline”. They involve stale editor
+  expectations and are outside this maintenance pass.
+- GitHub automatic deployment reliability remains unverified. No failed build log
+  or repository-owned CI workflow was available for this investigation; local
+  configuration alone cannot establish its failure cause.
+- Inspect the failed build's first error and failing command in `tripcast` Settings
+  → Builds before changing configuration. If Vite reports missing hosted settings,
+  supply the publishable key in **build** variables (a runtime secret does not
+  supply frontend build inputs). If Wrangler reports a missing production environment
+  or wrong Worker, remove the obsolete `--env production`/name override in the
+  dashboard deploy command. If it reports a domain conflict, inspect assignments
+  before taking action. These are conditional checks, not confirmed failure causes.
+- Record the failing commit, Node version (project requires Node 24.21.x), build
+  command, deploy command and sanitized first error. Reconcile only the setting
+  shown to be wrong, then authorize a CI retry separately.
+- Temporary per-attempt OpenWeather console diagnostics have been removed after
+  resolving unsupported redirect handling. Manual redirect rejection, bounded
+  retries and sanitized public errors remain in place. No replacement logging
+  infrastructure has been added.
 
 CSP is identical for assets and Worker responses: only the exact Supabase HTTPS
 origin is added to connect-src, fonts.googleapis.com to style-src and
