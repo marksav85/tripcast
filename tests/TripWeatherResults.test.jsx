@@ -101,10 +101,10 @@ it('shows primary clothing advice collapsed and additional guidance on expansion
     precipitationProbability: .8, windSpeedMs: 10, uvIndex: 7 });
   setup({ result });
   const details = document.querySelector('details');
-  expect(within(details.querySelector('summary')).getByText('Warm waterproof coat and layers')).toBeVisible();
-  expect(within(details).getByText('Windproof outer layer')).not.toBeVisible();
+  expect(within(details.querySelector('summary')).getByText('Rain jacket and warm layers')).toBeVisible();
+  expect(within(details).getByText('Choose a windproof rain jacket with a secure hood')).not.toBeVisible();
   fireEvent.click(details.querySelector('summary'));
-  expect(within(details).getByText('Windproof outer layer')).toBeVisible();
+  expect(within(details).getByText('Choose a windproof rain jacket with a secure hood')).toBeVisible();
   expect(within(details).getByText('Sunscreen, sunglasses and a sun hat')).toBeVisible();
 });
 it('labels long-range clothing advice provisional in summary and details', () => {
@@ -119,4 +119,14 @@ it('shows cautious missing-data advice without inventing clothing needs', () => 
   const result = weatherEnvelope(); result.data.days[0].model = { lowC: null, highC: null };
   setup({ result });
   expect(within(document.querySelector('summary')).getByText('Not enough weather signals for specific clothing advice')).toBeVisible();
+});
+it('shows useful mild clear-weather advice with no unnecessary expanded list', () => {
+  const result = weatherEnvelope();
+  result.data.days[0].model = { forecastType: 'standard', lowC: 18.05, highC: 24.59,
+    condition: { id: 800, description: 'clear sky' }, precipitationProbability: 0, windSpeedMs: 3.83, uvIndex: 5.53 };
+  setup({ result });
+  const details = document.querySelector('details');
+  expect(within(details.querySelector('summary')).getByText('Light clothing and sunglasses')).toBeVisible();
+  fireEvent.click(details.querySelector('summary'));
+  expect(details.querySelector('.trip-clothing-details ul')).toBeNull();
 });
