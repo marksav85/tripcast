@@ -1,4 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { clothingAdvice } from '../../lib/clothingAdvice.js';
 import { conditionIcon } from '../../lib/weatherPresentation.js';
 import { allocateTripDates, addCalendarDays, coveredDayCount } from '../../../shared/trip.js';
 import { formatCalendarDate } from '../../../shared/calendar.js';
@@ -22,14 +23,20 @@ function ForecastCategory({ model }) {
   return <span className={`trip-category ${type === 'long-range' ? 'trip-category-long' : type === 'standard' ? 'trip-category-standard' : ''}`}>{label}</span>;
 }
 
-function WeatherDetails({ model }) {
+function WeatherDetails({ model, advice }) {
   const periods = [['morning', 'Morning'], ['day', 'Daytime'], ['evening', 'Evening'], ['night', 'Night']];
   const hasTemperatures = periods.some(([key]) => number(model.temperatureC?.[key]) || number(model.feelsLikeC?.[key]));
   const metrics = [['Wind speed', model.windSpeedMs, ' m/s'], ['Wind direction', model.windDirectionDeg, '°'],
     ['Humidity', model.humidityPercent, '%'], ['Cloud coverage', model.cloudPercent, '%'], ['UV index', model.uvIndex, '']];
   const hasMetrics = metrics.some(([, value]) => number(value));
-  if (!hasTemperatures && !hasMetrics) return <p className="trip-detail-empty">Additional measurements are unavailable.</p>;
   return <div className="trip-details">
+    <div className="trip-clothing-details">
+      <h5>Clothing advice{advice.provisional ? ' — provisional' : ''}</h5>
+      <p>{advice.primary}</p>
+      {advice.additional.length > 0 && <ul>{advice.additional.map(item => <li key={item}>{item}</li>)}</ul>}
+      {advice.provisional && <p className="trip-muted">Based on a long-range estimate; check again closer to departure.</p>}
+    </div>
+    {!hasTemperatures && !hasMetrics && <p className="trip-detail-empty">Additional measurements are unavailable.</p>}
     {hasTemperatures && <div className="trip-periods">{periods.map(([key, label]) => <div key={key}>
       <h5>{label}</h5><p>{temperature(model.temperatureC?.[key])}</p><p className="trip-muted">Feels like {temperature(model.feelsLikeC?.[key])}</p>
     </div>)}</div>}
@@ -46,6 +53,7 @@ function WeatherDay({ date, day, requested }) {
       ? `Retrieval error: ${day.error.message}` : requested ? 'Weather was not returned for this date.' : 'Weather not requested.'}</p>
   </div>;
   const model = day.model;
+  const advice = clothingAdvice(model);
   return <details className="trip-day">
     <summary className="trip-day-summary">
       <span className="trip-day-date">{dateLabel}</span>
@@ -55,10 +63,10 @@ function WeatherDay({ date, day, requested }) {
           {number(model.precipitationProbability) && <span className="trip-rain">{Math.round(model.precipitationProbability * 100)}% precipitation chance</span>}</span>
       </span>
       <span className="trip-temperature"><span className="sr-only">Maximum </span>{temperature(model.highC)}<span className="trip-low"> / <span className="sr-only">Minimum </span>{temperature(model.lowC)}</span></span>
-      <span className="trip-day-labels"><ForecastCategory model={model} />{day.meta?.stale && <span className="trip-stale">Older cached weather</span>}</span>
+      <span className="trip-day-labels"><span className="trip-clothing-primary">{advice.primary}</span><ForecastCategory model={model} />{day.meta?.stale && <span className="trip-stale">Older cached weather</span>}</span>
       <span aria-hidden="true" className="trip-chevron">⌄</span>
     </summary>
-    <WeatherDetails model={model} />
+    <WeatherDetails model={model} advice={advice} />
   </details>;
 }
 

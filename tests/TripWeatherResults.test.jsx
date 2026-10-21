@@ -94,3 +94,29 @@ it('keeps destination headings below the Trip weather section heading', () => {
   expect(screen.getByRole('heading', { name: 'Trip weather', level: 3 })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Paris, FR', level: 4 })).toBeVisible();
 });
+
+it('shows primary clothing advice collapsed and additional guidance on expansion', () => {
+  const result = weatherEnvelope();
+  Object.assign(result.data.days[0].model, { forecastType: 'standard', lowC: 2,
+    precipitationProbability: .8, windSpeedMs: 10, uvIndex: 7 });
+  setup({ result });
+  const details = document.querySelector('details');
+  expect(within(details.querySelector('summary')).getByText('Warm waterproof coat and layers')).toBeVisible();
+  expect(within(details).getByText('Windproof outer layer')).not.toBeVisible();
+  fireEvent.click(details.querySelector('summary'));
+  expect(within(details).getByText('Windproof outer layer')).toBeVisible();
+  expect(within(details).getByText('Sunscreen, sunglasses and a sun hat')).toBeVisible();
+});
+it('labels long-range clothing advice provisional in summary and details', () => {
+  const result = firstModel(); setup({ result });
+  const details = document.querySelector('details');
+  expect(within(details.querySelector('summary')).getByText(/^Provisional:/)).toBeVisible();
+  fireEvent.click(details.querySelector('summary'));
+  expect(within(details).getByText('Clothing advice — provisional')).toBeVisible();
+  expect(within(details).getByText(/check again closer to departure/)).toBeVisible();
+});
+it('shows cautious missing-data advice without inventing clothing needs', () => {
+  const result = weatherEnvelope(); result.data.days[0].model = { lowC: null, highC: null };
+  setup({ result });
+  expect(within(document.querySelector('summary')).getByText('Not enough weather signals for specific clothing advice')).toBeVisible();
+});
