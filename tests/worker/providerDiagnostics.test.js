@@ -3,6 +3,24 @@ import { createProvider } from '../../src/worker/provider.js';
 
 afterEach(() => vi.restoreAllMocks());
 
+it.each([300, 301, 302, 303, 304, 307, 308, 399])('rejects redirect status %s without following it', async status => {
+  vi.spyOn(console, 'info').mockImplementation(() => {});
+  const upstreamFetch = vi.fn(async (value, options) => {
+    // Enforce the supported Workers option; do not include request values in assertions.
+    expect(options.redirect).toBe('manual');
+    expect(new URL(value).hostname === 'api.openweathermap.org').toBe(true);
+    return new Response(null, { status, headers: { Location: 'https://other.invalid/' } });
+  });
+  const sleep = vi.fn(async () => {});
+  const provider = createProvider({ upstreamFetch, sleep, timeoutMs: 1000, now: Date.now });
+  await expect(provider('/api/reverse-geocode', { lat: 52, lon: 11 },
+    { OPENWEATHER_API_KEY: 'synthetic-private-key' }, false)).rejects.toMatchObject({
+    code: 'UPSTREAM_FAILURE', status: 502, message: 'Weather service failed. Please retry.',
+  });
+  expect(upstreamFetch).toHaveBeenCalledTimes(2);
+  expect(sleep).toHaveBeenCalledExactlyOnceWith(250);
+});
+
 it.each(['/api/geocode', '/api/reverse-geocode'])(
   'logs only safe fields for HTTP errors and preserves retries on %s', async route => {
     const log = vi.spyOn(console, 'info').mockImplementation(() => {});

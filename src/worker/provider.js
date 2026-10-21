@@ -77,13 +77,15 @@ export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
               calls += 1;
               let response;
               try {
-                response = await upstreamFetch(url.toString(), { redirect: 'error', signal: controller.signal });
+                response = await upstreamFetch(url.toString(), { redirect: 'manual', signal: controller.signal });
               } catch (error) {
                 diagnostic(null, calls, controller.signal.aborted ? 'request_aborted' : 'fetch_exception');
                 throw error;
               }
               diagnostic(response.status, calls, 'upstream_response');
               controller.signal.throwIfAborted();
+              // Workers supports manual, not error; never follow credential-bearing redirects.
+              if (response.status >= 300 && response.status < 400) throw new ApiError('UPSTREAM_FAILURE', 502, 'Weather service failed. Please retry.');
               if (response.status === 429) {
                 const seconds = Math.min(300, Math.max(60, Number(response.headers.get('retry-after')) || 60));
                 cooldownUntil = now() + seconds * 1000;
