@@ -40,3 +40,21 @@ it('keeps the session and dialog on failure with a sanitized error', async () =>
   expect(client.auth.signOut).not.toHaveBeenCalled(); expect(onDeleted).not.toHaveBeenCalled();
   expect(screen.getByRole('alert')).not.toHaveTextContent('private details');
 });
+it.each(['reject', 'error'])('does not display deletion failure or block navigation when signOut %s', async mode => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ deleted: true })));
+  const { client, onDeleted } = setup();
+  if (mode === 'reject') client.auth.signOut.mockRejectedValue(new Error('private refresh failure'));
+  else client.auth.signOut.mockResolvedValue({ error: new Error('private logout failure') });
+  fireEvent.change(screen.getByLabelText('Type DELETE to confirm'), { target: { value: 'DELETE' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Permanently delete account' }));
+  await waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+it('preserves session when deletion response cannot be parsed', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('unusable', { status: 200 })));
+  const { client, onDeleted } = setup();
+  fireEvent.change(screen.getByLabelText('Type DELETE to confirm'), { target: { value: 'DELETE' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Permanently delete account' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('could not be confirmed');
+  expect(client.auth.signOut).not.toHaveBeenCalled(); expect(onDeleted).not.toHaveBeenCalled();
+});

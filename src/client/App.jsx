@@ -11,6 +11,7 @@ function App() {
   const publicWeather = <MainView onPlanTrip={() => myTripRef.current?.click()} />;
   return (
     <div className="app-shell">
+      {new URLSearchParams(window.location.search).get('account') === 'deleted' && !auth.isAuthenticated && <output className="trip-notice">Account deleted.</output>}
       {auth.isAuthenticated
         ? <TripDashboard key={auth.user.id} ownerId={auth.user.id} myTripRef={myTripRef} publicWeather={publicWeather} />
         : <Header myTripRef={myTripRef}><main>{publicWeather}</main></Header>}

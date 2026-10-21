@@ -1,7 +1,9 @@
 import { useId, useRef, useState } from 'react';
+import { finishAccountDeletion, clearDeletedAccountStorage } from '../../auth/deletedAccount.js';
+import { authStorageKey } from '../../api/supabase.js';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from '../ui/alert-dialog';
 
-export default function DeleteAccountDialog({ client, disabled, onBusyChange, onDeleted = () => window.location.assign('/') }) {
+export default function DeleteAccountDialog({ client, disabled, onBusyChange, onDeleted, clearState }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState('');
@@ -16,7 +18,7 @@ export default function DeleteAccountDialog({ client, disabled, onBusyChange, on
     event.preventDefault();
     if (busy.current || disabled || confirmation !== 'DELETE') return;
     busy.current = true; setPending(true); setError(''); onBusyChange?.(true);
-    let deleted = false;
+    let confirmed = false;
     try {
       const session = await client.auth.getSession();
       if (session.error || !session.data?.session?.access_token) throw new Error();
@@ -25,13 +27,11 @@ export default function DeleteAccountDialog({ client, disabled, onBusyChange, on
         body: JSON.stringify({ confirmation: 'DELETE' }),
       });
       if (!response.ok || (await response.json()).deleted !== true) throw new Error();
-      deleted = true;
-      const result = await client.auth.signOut({ scope: 'local' });
-      if (result.error) throw new Error();
-      onDeleted();
+      confirmed = true;
+      await finishAccountDeletion(client, { clearState, navigate: onDeleted,
+        clearStorage: () => clearDeletedAccountStorage(authStorageKey) });
     } catch {
-      setError(deleted ? 'Your account was deleted, but session cleanup failed. Sign out before continuing.'
-        : 'Account deletion could not be confirmed. Your session has been kept. Please try again or contact the site owner.');
+      if (!confirmed) setError('Account deletion could not be confirmed. Your session has been kept. Please try again or contact the site owner.');
     } finally { busy.current = false; setPending(false); onBusyChange?.(false); }
   }
   return <AlertDialog open={open} onOpenChange={changeOpen}>

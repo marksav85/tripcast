@@ -98,3 +98,13 @@ describe('session lifecycle', () => {
     await screen.findByText('Weather loaded.');
   });
 });
+it('clears deleted user state and ignores late auth events for that account', async () => {
+  function Controls() { const auth = useAuth(); return <><button onClick={auth.clearDeletedAccount}>Clear deleted account</button><Probe /></>; }
+  const client = mockClient(Promise.resolve({ data: { session } }));
+  render(<AuthProvider client={client}><Controls /></AuthProvider>);
+  await screen.findByText('authenticated|owner-a|false|');
+  fireEvent.click(screen.getByRole('button', { name: 'Clear deleted account' }));
+  expect(screen.getByText('unauthenticated|none|false|')).toBeInTheDocument();
+  act(() => client.emit(session, 'TOKEN_REFRESHED'));
+  expect(screen.getByText('unauthenticated|none|false|')).toBeInTheDocument();
+});

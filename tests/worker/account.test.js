@@ -63,3 +63,21 @@ it('keeps route method, origin and bearer guards ahead of administrative work', 
     expect(await response.text()).not.toContain(env.SUPABASE_SECRET_KEY);
   }
 });
+it('confirms successful deletion even when Auth does not echo the deleted user', async () => {
+  const deps = setup();
+  deps.remove.mockResolvedValue({ data: { user: {} }, error: null });
+  await expect(deleteAccount(request(), env, deps)).resolves.toEqual({ deleted: true });
+  expect(deps.remove).toHaveBeenCalledExactlyOnceWith(owner, false);
+});
+it('accepts the real SDK transform of an empty successful Auth DELETE response', async () => {
+  const { createClient } = await import('@supabase/supabase-js');
+  const upstream = vi.fn(async (input, options) => {
+    if (options.method === 'GET') return Response.json({ id: owner });
+    expect(options.method).toBe('DELETE');
+    return Response.json({});
+  });
+  const deps = setup();
+  deps.makeClient = (url, key, options) => createClient(url, key, { ...options, global: { fetch: upstream } });
+  await expect(deleteAccount(request(), env, deps)).resolves.toEqual({ deleted: true });
+  expect(upstream).toHaveBeenCalledTimes(2);
+});

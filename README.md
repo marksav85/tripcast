@@ -281,9 +281,12 @@ References: [Vite env precedence](https://vite.dev/guide/env-and-mode),
 
 Signed-in users have a red outlined **Delete account** header button beside Sign
 out, separated by extra spacing. The confirmation dialog requires typing `DELETE`.
-Only after server-confirmed deletion does the client sign out locally and return
-to `/`. A rejected or unconfirmed deletion keeps the session and shows a sanitized
-error; a session-cleanup error after confirmed deletion is reported separately.
+Only after server-confirmed deletion does the client clear its auth state and
+project-scoped session storage, attempt bounded best-effort SDK sign-out, and reload
+the public homepage with an “Account deleted” confirmation. An SDK cleanup failure
+does not reclassify confirmed deletion as failure. A rejected or unconfirmed deletion
+keeps the session and shows a cautious error. Successful Auth deletion need not echo
+the deleted user record.
 
 `DELETE /api/account` accepts only `{ "confirmation": "DELETE" }`. The Worker
 verifies the bearer JWT with the existing issuer/JWKS/audience/ES256 rules and

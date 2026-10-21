@@ -26,7 +26,8 @@ export async function deleteAccount(request, env, { verify = verifySupabaseAcces
     if (current.error || current.data?.user?.id !== identity.userId) throw unavailable();
     // Hard delete once. Existing database FKs cascade to trips and destinations atomically.
     const deleted = await admin.auth.admin.deleteUser(identity.userId, false);
-    if (deleted.error || deleted.data?.user?.id !== identity.userId) throw unavailable();
+    // The successful Auth DELETE response need not echo the removed user record.
+    if (!deleted || deleted.error) throw unavailable();
     return { deleted: true };
   } catch { throw unavailable(); } // Never return SDK errors, credentials or response bodies.
 }

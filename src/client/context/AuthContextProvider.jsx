@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AuthContext } from '../auth/context.js';
 import { supabase, authConfigurationError } from '../api/supabase.js';
 
@@ -6,6 +6,7 @@ import { initialCallbackKind, handleAuthCallback } from '../auth/callback.js';
 
 const safeError = 'Authentication could not be restored. Please try again later.';
 export function AuthProvider({ children, client = supabase, configurationError = authConfigurationError }) {
+  const deletedUser = useRef(null);
   const [recoveryStatus, setRecoveryStatus] = useState(initialCallbackKind === 'recovery' ? 'pending' : initialCallbackKind === 'invalid' ? 'error' : null);
   const [callbackError, setCallbackError] = useState(null);
   const [state, setState] = useState({ session: null, loading: Boolean(client), error: client ? null : configurationError });
@@ -18,7 +19,7 @@ export function AuthProvider({ children, client = supabase, configurationError =
     try {
       // Subscribe first. A later getSession result must not overwrite a newer auth event.
       subscription = client.auth.onAuthStateChange((event, session) => {
-        if (!active) return;
+        if (!active || (deletedUser.current && session?.user?.id === deletedUser.current)) return;
         if (event !== 'INITIAL_SESSION') changes += 1;
         setState({ session: session ?? null, loading: false, error: null });
       }).data.subscription;
@@ -33,7 +34,7 @@ export function AuthProvider({ children, client = supabase, configurationError =
       });
       const initialChanges = changes;
       Promise.resolve(client.auth.getSession()).then(({ data, error }) => {
-        if (!active || changes !== initialChanges) return;
+        if (!active || changes !== initialChanges || deletedUser.current) return;
         if (error) fail();
         else setState({ session: data?.session ?? null, loading: false, error: null });
       }).catch(() => { if (changes === initialChanges) fail(); });
@@ -42,6 +43,7 @@ export function AuthProvider({ children, client = supabase, configurationError =
   }, [client]);
   const session = client ? state.session : null;
   return <AuthContext.Provider value={{
+    clearDeletedAccount: () => { deletedUser.current = state.session?.user?.id; setState({ session: null, loading: false, error: null }); setRecoveryStatus(null); },
     recoveryStatus, callbackError, completeRecovery: () => setRecoveryStatus(null),
     client, session, user: session?.user ?? null, loading: state.loading,
     status: !client ? 'unavailable' : recoveryStatus ? 'recovery' : state.loading ? 'loading' : state.error ? 'error' : session ? 'authenticated' : 'unauthenticated',

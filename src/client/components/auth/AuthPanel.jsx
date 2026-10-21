@@ -74,7 +74,7 @@ function AuthForm({ mode, client, finish }) {
 }
 
 export default function AuthPanel({ view: controlledView, onViewChange, onWeatherSearch, renderHeader, children }) {
-  const { client, user, loading, recoveryStatus, callbackError, completeRecovery } = useAuth();
+  const { client, user, loading, recoveryStatus, callbackError, completeRecovery, clearDeletedAccount } = useAuth();
   const [localView, setLocalView] = useState(null);
   const view = controlledView === undefined ? localView : controlledView;
   const setView = onViewChange ?? setLocalView;
@@ -106,7 +106,7 @@ export default function AuthPanel({ view: controlledView, onViewChange, onWeathe
   const controls = <section aria-label="Account" className="shell-account">
     {!client ? <AuthAvailability />
       : recoveryStatus ? !showCard && <button type="button" className="shell-action" onClick={() => setRecoveryHidden(false)}>Continue account recovery</button>
-      : user ? <div className="shell-account-controls"><span className="shell-account-name" title={user.email}>Signed in as {user.email ?? 'your account'}</span><button className="shell-action" onClick={signOut} disabled={signingOut || deletingAccount}>{signingOut ? 'Signing out…' : 'Sign out'}</button><DeleteAccountDialog client={client} disabled={signingOut} onBusyChange={setDeletingAccount} /></div>
+      : user ? <div className="shell-account-controls"><span className="shell-account-name" title={user.email}>Signed in as {user.email ?? 'your account'}</span><button className="shell-action" onClick={signOut} disabled={signingOut || deletingAccount}>{signingOut ? 'Signing out…' : 'Sign out'}</button><DeleteAccountDialog clearState={clearDeletedAccount} client={client} disabled={signingOut} onBusyChange={setDeletingAccount} /></div>
       : loading ? <output>Restoring session…</output>
       : <nav hidden={showCard} aria-label="Authentication" className="shell-auth-actions">
         <button className="shell-action" onClick={(event) => setView('signin', event)}>Sign in</button>
