@@ -19,20 +19,20 @@ function submit(name) { fireEvent.submit(screen.getByRole('form', { name })); }
 it('validates email and password without a network call', () => {
   const { auth } = setup(); fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
   submit('Create account'); expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument();
-  fill('short'); submit('Create account'); expect(screen.getByText('Use at least 6 characters.', { selector: 'output' })).toBeInTheDocument();
+  fill('short'); submit('Create account'); expect(screen.getByRole('alert')).toBeInTheDocument();
   expect(auth.signUp).not.toHaveBeenCalled();
 });
 it.each([null, { user: { id: 'a' } }])('registers and distinguishes confirmation/session %#', async (session) => {
   const { auth } = setup(); auth.signUp.mockResolvedValue({ data: { session } });
   fireEvent.click(screen.getByRole('button', { name: 'Create account' })); fill(); submit('Create account');
-  await screen.findByText(session ? 'Account ready. You are signed in.' : /Check your email to confirm/);
+  await screen.findByText(session ? 'Account ready. You are signed in.' : /received your registration request/);
   expect(auth.signUp).toHaveBeenCalledWith(expect.objectContaining({ options: { emailRedirectTo: window.location.origin + '/auth/callback' } }));
   expect(screen.getByLabelText('Password')).toHaveValue('');
 });
 it('does not enumerate existing registration accounts or expose upstream errors', async () => {
   const { auth } = setup(); auth.signUp.mockResolvedValue({ error: { code: 'user_already_exists', message: 'token-secret' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create account' })); fill(); submit('Create account');
-  await screen.findByText(/Check your email, or try signing in/); expect(document.body.textContent).not.toContain('token-secret');
+  await screen.findByText(/Registration could not be completed/); expect(document.body.textContent).not.toContain('token-secret');
 });
 it.each([false, true])('handles sign-in success/invalid credentials=%s', async (invalid) => {
   const { auth } = setup(); auth.signInWithPassword.mockResolvedValue(invalid ? { error: { code: 'invalid_credentials' } } : { data: {} });
@@ -43,7 +43,7 @@ it('blocks duplicate submissions and clears pending state on service failure', a
   const pending = deferred(); const { auth } = setup(); auth.signInWithPassword.mockReturnValue(pending.promise);
   fireEvent.click(screen.getByRole('button', { name: 'Sign in' })); fill(); submit('Sign in'); submit('Sign in');
   expect(auth.signInWithPassword).toHaveBeenCalledOnce(); expect(screen.getByRole('button', { name: 'Please wait…' })).toBeDisabled();
-  await act(async () => pending.reject(new Error('private'))); await screen.findByText(/Authentication service is unavailable/);
+  await act(async () => pending.reject(new Error('private'))); await screen.findByText(/Could not connect to authentication/);
 });
 it('requests recovery with a fixed callback and neutral feedback', async () => {
   const { auth } = setup(); auth.resetPasswordForEmail.mockResolvedValue({});
@@ -121,7 +121,7 @@ it('associates local validation with its field and disables all form controls wh
   const { auth } = setup(); fireEvent.click(screen.getByRole('button', { name: 'Sign in' })); submit('Sign in');
   const email = screen.getByLabelText('Email');
   expect(email).toHaveFocus(); expect(email).toHaveAttribute('aria-invalid', 'true');
-  expect(screen.getByText('Enter a valid email address.')).toHaveAttribute('id', email.getAttribute('aria-describedby'));
+  expect(screen.getByRole('alert')).toHaveAttribute('id', email.getAttribute('aria-describedby'));
   const pending = deferred(); auth.signInWithPassword.mockReturnValue(pending.promise); fill(); submit('Sign in');
   expect(screen.getByRole('form', { name: 'Sign in' })).toHaveAttribute('aria-busy', 'true');
   expect(email).toBeDisabled(); expect(screen.getByLabelText('Password')).toBeDisabled(); expect(screen.getByRole('button', { name: 'Show password' })).toBeDisabled();
@@ -137,4 +137,52 @@ it('lets public weather remain accessible during recovery without completing or 
   await user.click(screen.getByRole('button', { name: 'Continue account recovery' }));
   expect(screen.getByRole('form', { name: 'Set new password' })).toBeVisible();
   expect(screen.getByLabelText('New password')).toHaveFocus();
+});
+it('shows a prominent privacy-safe registration confirmation for concealed duplicate identities', async () => {
+  const { auth } = setup();
+  auth.signUp.mockResolvedValue({ data: { user: { identities: [] }, session: null }, error: null });
+  fireEvent.click(screen.getByRole('button', { name: 'Create account' })); fill(); submit('Create account');
+  const panel = await screen.findByText('Check your inbox');
+  expect(panel.closest('output')).toHaveAttribute('role', 'status');
+  expect(panel.closest('output')).toHaveClass('auth-feedback-success');
+  expect(screen.getByText(/spam or junk/)).toBeVisible();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+it.each([{ code: 'over_email_send_rate_limit' }, { status: 429 }, { code: 'email_exists', status: 429 }])('treats explicit signup rate-limit errors as failure %j', async error => {
+  const { auth } = setup(); auth.signUp.mockResolvedValue({ error });
+  fireEvent.click(screen.getByRole('button', { name: 'Create account' })); fill(); submit('Create account');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Too many confirmation emails have been requested. Please try again later.');
+  expect(screen.queryByText('Check your inbox')).not.toBeInTheDocument();
+});
+it.each([
+  ['email_address_invalid', 'Check your email address and try again.'],
+  ['weak_password', 'Choose a different password that meets the requirements.'],
+  ['unexpected_failure', 'Authentication service is unavailable. Please try again.'],
+])('renders signup failure %s prominently without raw upstream details', async (code, message) => {
+  const { auth } = setup(); auth.signUp.mockResolvedValue({ error: { code, message: 'private details' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create account' })); fill(); submit('Create account');
+  expect(await screen.findByRole('alert')).toHaveTextContent(message);
+  expect(screen.queryByText('Check your inbox')).not.toBeInTheDocument();
+  expect(document.body.textContent).not.toContain('private details');
+});
+it('does not suggest email confirmation for immediately authenticated signup', async () => {
+  const { auth } = setup(); auth.signUp.mockResolvedValue({ data: { session: { user: { id: 'a' } } } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create account' })); fill(); submit('Create account');
+  expect(await screen.findByText('Account ready. You are signed in.')).toBeVisible();
+  expect(screen.queryByText('Check your inbox')).not.toBeInTheDocument();
+});
+it('reports connection failure as an alert rather than signup success', async () => {
+  const { auth } = setup(); auth.signUp.mockRejectedValue(new Error('private network details'));
+  fireEvent.click(screen.getByRole('button', { name: 'Create account' })); fill(); submit('Create account');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not connect to authentication');
+  expect(screen.queryByText('Check your inbox')).not.toBeInTheDocument();
+});
+it('shows recovery inbox confirmation only for accepted requests', async () => {
+  const { auth } = setup(); auth.resetPasswordForEmail.mockResolvedValue({});
+  fireEvent.click(screen.getByRole('button', { name: 'Forgot password' }));
+  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'synthetic@example.test' } }); submit('Forgot password');
+  expect(await screen.findByText('Check your inbox')).toBeVisible();
+  auth.resetPasswordForEmail.mockResolvedValue({ error: { status: 429 } }); submit('Forgot password');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Too many confirmation emails');
+  expect(screen.queryByText('Check your inbox')).not.toBeInTheDocument();
 });

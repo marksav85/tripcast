@@ -15,12 +15,16 @@ function AuthForm({ mode, client, finish }) {
   const [visible, setVisible] = useState(false);
   const [invalidField, setInvalidField] = useState(null);
   const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
-  const [message, setMessage] = useState(''); const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState('');
+  const [feedback, setFeedback] = useState('error');
+  const [feedbackTitle, setFeedbackTitle] = useState('');
+  const [pending, setPending] = useState(false);
   const busy = useRef(false); const active = useRef(true);
   const formRef = useRef(null);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   async function submit(event) {
     event.preventDefault(); if (busy.current) return;
+    setFeedback('error'); setFeedbackTitle('Please try again');
     if (mode !== 'reset' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setInvalidField('email'); setMessage('Enter a valid email address.'); formRef.current?.querySelector('input[type="email"]')?.focus(); return; }
     // Local Auth minimum is six characters, without additional composition rules.
     if (mode !== 'forgot' && password.length < (mode === 'signin' ? 1 : 6)) { setInvalidField('password'); setMessage(mode === 'signin' ? 'Enter your password.' : 'Use at least 6 characters.'); formRef.current?.querySelector('[name="password"]')?.focus(); return; }
@@ -34,18 +38,37 @@ function AuthForm({ mode, client, finish }) {
       if (!active.current) return;
       if (result.error) {
         const code = result.error.code;
-        setMessage(mode === 'forgot' && ['user_not_found', 'email_not_found'].includes(code) ? 'If an account can receive recovery email, check your inbox.'
-          : mode === 'signin' && ['invalid_credentials', 'email_not_confirmed'].includes(code) ? 'Unable to sign in. Check your credentials and confirmation email.'
-          : mode === 'register' && ['user_already_exists', 'email_exists'].includes(code) ? 'Check your email, or try signing in or resetting your password.'
-          : mode === 'reset' && ['same_password', 'weak_password'].includes(code) ? 'Choose a different password that meets the requirements.' : serviceError);
+        if (code === 'over_email_send_rate_limit' || result.error.status === 429) {
+          setMessage(mode === 'register' || mode === 'forgot'
+            ? 'Too many confirmation emails have been requested. Please try again later.'
+            : 'Too many attempts. Please try again later.');
+        } else if (mode === 'register' && ['user_already_exists', 'email_exists'].includes(code)) {
+          setFeedback('info'); setFeedbackTitle('Check your account options');
+          setMessage('Registration could not be completed. Try signing in or requesting a password reset.');
+        } else if (mode === 'forgot' && ['user_not_found', 'email_not_found'].includes(code)) {
+          setFeedback('info'); setFeedbackTitle('Recovery request');
+          setMessage('If an account can receive recovery email, check your inbox.');
+        } else setMessage(['email_address_invalid', 'email_address_not_authorized', 'validation_failed'].includes(code)
+          ? 'Check your email address and try again.'
+          : ['weak_password', 'same_password'].includes(code) ? 'Choose a different password that meets the requirements.'
+          : mode === 'signin' && ['invalid_credentials', 'email_not_confirmed'].includes(code)
+            ? 'Unable to sign in. Check your credentials and confirmation email.'
+          : result.error.name === 'AuthRetryableFetchError' || result.error.status === 0
+            ? 'Could not connect to authentication. Check your connection and try again.' : serviceError);
       } else {
         setPassword(''); setVisible(false);
+        setFeedback('success');
         if (mode === 'reset') finish('Password updated.');
-        else setMessage(mode === 'forgot' ? 'If an account can receive recovery email, check your inbox.'
-          : mode === 'register' && !result.data?.session ? 'Check your email to confirm your account, or try signing in.'
-          : mode === 'register' ? 'Account ready. You are signed in.' : 'You are signed in.');
+        else {
+          const inbox = mode === 'forgot' || (mode === 'register' && !result.data?.session);
+          setFeedbackTitle(inbox ? 'Check your inbox' : mode === 'register' ? 'Account ready' : 'Signed in');
+          setMessage(mode === 'forgot' ? 'If an account can receive recovery email, follow the link in your inbox to reset your password.'
+            : mode === 'register' && !result.data?.session
+              ? "We've received your registration request. If a confirmation email is required, follow the link in your inbox to activate your account."
+            : mode === 'register' ? 'Account ready. You are signed in.' : 'You are signed in.');
+        }
       }
-    } catch { if (active.current) setMessage(serviceError); }
+    } catch { if (active.current) { setFeedback('error'); setFeedbackTitle('Please try again'); setMessage('Could not connect to authentication. Check your connection and try again.'); } }
     finally { busy.current = false; if (active.current) setPending(false); }
   }
   useEffect(() => { formRef.current?.querySelector('input')?.focus(); }, []);
@@ -69,7 +92,11 @@ function AuthForm({ mode, client, finish }) {
       {mode !== 'signin' && <p id={id + '-password-hint'} className="auth-field-hint">Use at least 6 characters.</p>}
     </div>}
     <button className="auth-button auth-button-primary" disabled={pending}>{pending ? 'Please wait…' : mode === 'forgot' ? 'Send Reset Link' : headings[mode]}<FontAwesomeIcon icon={faArrowRight} aria-hidden="true" /></button>
-    <output id={id + '-message'} className="auth-form-message" aria-live="polite">{message}</output>
+    {message && <output id={id + '-message'} className={`auth-feedback auth-feedback-${feedback}`} role={feedback === 'error' ? 'alert' : 'status'} aria-live={feedback === 'error' ? 'assertive' : 'polite'}>
+      <strong className="auth-feedback-title">{feedbackTitle}</strong>
+      <span>{message}</span>
+      {feedback === 'success' && feedbackTitle === 'Check your inbox' && <span className="auth-feedback-hint">If you don’t see an email, check your spam or junk folder.</span>}
+    </output>}
   </form>;
 }
 

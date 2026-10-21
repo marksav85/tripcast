@@ -478,3 +478,10 @@ body { background: var(--color-canvas); color: var(--color-text); font-family: v
 
 .shell-account-controls .shell-delete-account { margin-inline-start: 1rem; border-color: #ba1a1a; color: #ba1a1a; }
 .shell-account-controls .shell-delete-account:hover:not(:disabled) { background: #fff0ef; }
+
+.auth-feedback { display: grid; gap: .5rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); font-size: .9375rem; line-height: 1.55; overflow-wrap: anywhere; }
+.auth-feedback-title { font-family: var(--font-heading); font-size: 1.125rem; }
+.auth-feedback-success { color: var(--color-primary); background: var(--color-accent); border-color: var(--color-primary); }
+.auth-feedback-error { color: #93000a; background: #fff0ef; border-color: #ba1a1a; }
+.auth-feedback-info { color: var(--color-text); background: var(--color-surface-soft); }
+.auth-feedback-hint { font-size: .8125rem; }
