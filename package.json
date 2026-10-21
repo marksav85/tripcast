@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "vite preview",
-    "deploy": "npm run build && wrangler deploy --env production",
+    "deploy": "npm run build && wrangler deploy",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0 && oxlint --max-warnings 0",
     "test": "vitest",
     "test:run": "npm run test:client && npm run test:worker",

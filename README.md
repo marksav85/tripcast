@@ -158,9 +158,9 @@ deployment are implied by this integration.
 ## Portfolio deployment preparation (Phase 4C)
 
 Architecture: the existing Worker with Static Assets, at
-`https://tripcast.marksavilledesigns.com`. No deployment has been performed.
-Default and `--env production` Wrangler settings use the confirmed Supabase
-staging project. The local Worker environment remains unchanged.
+`https://tripcast.marksavilledesigns.com`. The production Worker is `tripcast`.
+Top-level Wrangler settings use the confirmed Supabase staging project.
+The local Worker environment remains unchanged.
 
 ### Frontend build
 
@@ -193,8 +193,8 @@ Wrangler already declares these non-secret production variables:
 - `STAGE=production`, `MOCK_PROVIDER=false`
 
 The only application Worker secret is `OPENWEATHER_API_KEY`; set it for the
-`production` environment via the Cloudflare dashboard's Worker secret settings
-(or `npx wrangler secret put OPENWEATHER_API_KEY --env production` once the Worker
+`tripcast` Worker via the Cloudflare dashboard's Worker secret settings
+(or `npx wrangler secret put OPENWEATHER_API_KEY` once the Worker
 exists). It is never a frontend build variable. Existing caching and request
 limits remain unchanged; provider account caps remain an owner responsibility.
 
@@ -208,11 +208,24 @@ Minimum owner actions:
    and allow the exact redirect `https://tripcast.marksavilledesigns.com/auth/callback`
    for confirmation/recovery flows; retain required local callback URLs.
 3. After deployment approval, run `npm run deploy`. This builds first and deploys
-   with `--env production` (Worker name `tripcast-production`). Ensure its
+   with top-level configuration (Worker name `tripcast`). Ensure its
    `OPENWEATHER_API_KEY` secret is configured before using weather features.
    The declared Custom Domain activates at deployment; Cloudflare manages its
    DNS and certificate. No manual CNAME is required. workers.dev and preview URLs
    are disabled. Do not run deploy commands during preparation.
+
+Cloudflare GitHub integration for `tripcast`: use build command `npm run build`
+and deploy command `npx wrangler deploy` (no `--env production` or name override).
+Keep the production branch set to `main` and supply the hosted VITE build variables
+in its build settings. Remove any `CLOUDFLARE_ENV` environment override from the
+local deploy shell or GitHub build settings so top-level configuration is selected.
+These dashboard settings are not stored in this repository.
+
+Before the next deployment, confirm the Custom Domain is assigned to `tripcast`.
+If it is attached to `tripcast-production`, resolve that assignment separately:
+a deployment may conflict with or change the existing assignment. Runtime secrets
+belong to each Worker separately; confirm `OPENWEATHER_API_KEY` exists on `tripcast`.
+Removing the local environment block does not delete the redundant remote Worker.
 
 CSP is identical for assets and Worker responses: only the exact Supabase HTTPS
 origin is added to connect-src, fonts.googleapis.com to style-src and

@@ -8,7 +8,7 @@ const wrangler = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
 
 describe('portfolio deployment configuration', () => {
   it('pins hosted JWT settings and keeps local fixtures isolated', () => {
-    for (const vars of [wrangler.vars, wrangler.env.production.vars]) {
+    for (const vars of [wrangler.vars]) {
       expect(vars).toMatchObject({ STAGE: 'production', MOCK_PROVIDER: 'false',
         SUPABASE_JWT_ISSUER: `${origin}/auth/v1`,
         SUPABASE_JWKS_URL: `${origin}/auth/v1/.well-known/jwks.json`,
@@ -16,9 +16,15 @@ describe('portfolio deployment configuration', () => {
       expect(vars).not.toHaveProperty('OPENWEATHER_API_KEY');
     }
     expect(wrangler.env.local.vars).toEqual({ STAGE: 'local', MOCK_PROVIDER: 'true' });
-    expect(wrangler.env.production.routes).toEqual([
+    expect(wrangler.routes).toEqual([
       { pattern: 'tripcast.marksavilledesigns.com', custom_domain: true },
     ]);
+    expect(wrangler.name).toBe('tripcast');
+    expect(wrangler.env).not.toHaveProperty('production');
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+    expect(pkg.scripts.deploy).toBe('npm run build && wrangler deploy');
+    expect(wrangler.assets).toMatchObject({ directory: './dist', binding: 'ASSETS',
+      not_found_handling: 'single-page-application', run_worker_first: ['/api', '/api/*'] });
     expect(wrangler.workers_dev).toBe(false);
     expect(wrangler.preview_urls).toBe(false);
   });

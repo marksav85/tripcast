@@ -34,22 +34,6 @@
         "STAGE": "staging",
         "MOCK_PROVIDER": "false"
       }
-    },
-    "production": {
-      "vars": {
-        "STAGE": "production",
-        "MOCK_PROVIDER": "false",
-        "SUPABASE_JWT_ISSUER": "https://oowesugpxxzvyvfqqxlu.supabase.co/auth/v1",
-        "SUPABASE_JWKS_URL": "https://oowesugpxxzvyvfqqxlu.supabase.co/auth/v1/.well-known/jwks.json",
-        "SUPABASE_JWT_AUDIENCE": "authenticated",
-        "SUPABASE_JWT_ALGORITHMS": "ES256"
-      },
-      "routes": [
-        {
-          "pattern": "tripcast.marksavilledesigns.com",
-          "custom_domain": true
-        }
-      ]
     }
   },
   "routes": [
