@@ -36,3 +36,6 @@ tree.txt
 
 # docs
 docs
+
+# Public production defaults; key belongs in ignored .env.production.local
+!.env.production

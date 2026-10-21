@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -7,7 +7,15 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  if (command === "build" && mode === "production") {
+    const env = loadEnv(mode, __dirname, "VITE_");
+    if (env.VITE_SUPABASE_URL !== "https://oowesugpxxzvyvfqqxlu.supabase.co"
+      || !/^sb_publishable_[A-Za-z0-9_-]{16,}$/.test(env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "")) {
+      throw new Error("Production build requires the confirmed hosted Supabase URL and staging publishable key in .env.production.local or the build environment.");
+    }
+  }
+  return {
   plugins: [react()],
   server: {
     port: 5173,
@@ -40,4 +48,5 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  };
 });

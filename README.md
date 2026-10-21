@@ -22,7 +22,7 @@ npm ci
 First build the static assets, then run the local Worker:
 
 ```sh
-npm run build
+npm run build -- --mode development
 npm run dev:worker
 ```
 
@@ -132,8 +132,8 @@ These controls do **not** enforce a global billable account budget. Provider cap
 abuse monitoring and any cross-region coordination must be approved before public
 live use. CORS/Origin restrictions are not authentication.
 
-Static `_headers` and API security headers enforce same-origin script/connect
-sources, no eval, no frames/objects and local geolocation. Lottie uses the light
+Static `_headers` and API security headers enforce same-origin scripts,
+the exact hosted Supabase connect origin and Google Fonts stylesheet/font origins, no eval, no frames/objects and local geolocation. Lottie uses the light
 expression-free build; FontAwesome uses compiled external CSS. Inline **style
 attributes only** remain allowed for Lottie's transforms; script/style elements
 are not opened to unsafe inline/eval. Static assets revalidate with no-cache.
@@ -153,3 +153,72 @@ Daily precipitation aggregation, exact provider horizon/model boundaries,
 other-location live semantics, attribution/caching rights, quota enforcement and
 deployed behavior remain separate readiness checks. No subscription changes or
 deployment are implied by this integration.
+
+
+## Portfolio deployment preparation (Phase 4C)
+
+Architecture: the existing Worker with Static Assets, at
+`https://tripcast.marksavilledesigns.com`. No deployment has been performed.
+Default and `--env production` Wrangler settings use the confirmed Supabase
+staging project. The local Worker environment remains unchanged.
+
+### Frontend build
+
+Keep Docker settings in `.env.local`. Create a separate ignored
+`.env.production.local` containing only:
+
+```dotenv
+VITE_SUPABASE_PUBLISHABLE_KEY=<staging sb_publishable_ key>
+```
+
+The public URL is tracked in `.env.production`:
+`https://oowesugpxxzvyvfqqxlu.supabase.co`. Its blank key prevents fallback to
+the local Docker key. Alternatively, supply both VITE variables through protected
+build configuration. Shell variables take precedence over env files. The production
+build fails on a wrong URL or missing/non-publishable key; the opaque key's project
+association must be confirmed by the owner. VITE values are public bundle content.
+Never put OpenWeather, service-role, secret keys or tokens in VITE variables.
+
+Run `npm run build`. For ordinary local previews use `npm run preview:worker`
+(which builds in development mode), or `npm run dev` for HMR.
+
+### Worker and owner actions (after review)
+
+Wrangler already declares these non-secret production variables:
+
+- `SUPABASE_JWT_ISSUER=https://oowesugpxxzvyvfqqxlu.supabase.co/auth/v1`
+- `SUPABASE_JWKS_URL=https://oowesugpxxzvyvfqqxlu.supabase.co/auth/v1/.well-known/jwks.json`
+- `SUPABASE_JWT_AUDIENCE=authenticated`
+- `SUPABASE_JWT_ALGORITHMS=ES256`
+- `STAGE=production`, `MOCK_PROVIDER=false`
+
+The only application Worker secret is `OPENWEATHER_API_KEY`; set it for the
+`production` environment via the Cloudflare dashboard's Worker secret settings
+(or `npx wrangler secret put OPENWEATHER_API_KEY --env production` once the Worker
+exists). It is never a frontend build variable. Existing caching and request
+limits remain unchanged; provider account caps remain an owner responsibility.
+
+Minimum owner actions:
+
+1. Confirm `marksavilledesigns.com` is an active zone in the intended Cloudflare
+   account, sign in with Wrangler, and check that the intended hostname has no
+   conflicting DNS record/Worker assignment.
+2. Supply the staging publishable build key and approve the production Worker
+   secret. Set Supabase Auth's Site URL to `https://tripcast.marksavilledesigns.com`
+   and allow the exact redirect `https://tripcast.marksavilledesigns.com/auth/callback`
+   for confirmation/recovery flows; retain required local callback URLs.
+3. After deployment approval, run `npm run deploy`. This builds first and deploys
+   with `--env production` (Worker name `tripcast-production`). Ensure its
+   `OPENWEATHER_API_KEY` secret is configured before using weather features.
+   The declared Custom Domain activates at deployment; Cloudflare manages its
+   DNS and certificate. No manual CNAME is required. workers.dev and preview URLs
+   are disabled. Do not run deploy commands during preparation.
+
+CSP is identical for assets and Worker responses: only the exact Supabase HTTPS
+origin is added to connect-src, fonts.googleapis.com to style-src and
+fonts.gstatic.com to font-src. Existing Google Fonts markup stays in use without
+new dependencies/assets. Other security headers and inline-style restrictions
+remain intact. Realtime is unused, so no Supabase WebSocket origin is allowed.
+
+References: [Vite env precedence](https://vite.dev/guide/env-and-mode),
+[Cloudflare Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
