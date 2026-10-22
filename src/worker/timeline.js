@@ -8,6 +8,14 @@ export const MAX_TIMELINE_PAGES = 2;
 const dayMs = 86400000;
 const stamp = (date) => Date.parse(`${date}T00:00:00Z`);
 
+/**
+ * Classify a date relative to today at the destination, not at the viewer's location.
+ * The eight-day boundary is TripCast's provisional policy, not a provider accuracy guarantee;
+ * later dates are estimates and must retain that distinction in presentation.
+ * @param {string} date Valid YYYY-MM-DD calendar date.
+ * @param {string} timeZone Valid provider IANA timezone.
+ * @param {number} now Current Unix time in milliseconds.
+ */
 export function forecastPolicy(date, timeZone, now) {
   const today = todayDate(new Date(now), timeZone);
   const distance = (stamp(date) - stamp(today)) / dayMs;
@@ -123,6 +131,13 @@ export function timelineDates(input) {
   );
 }
 
+/**
+ * Collect a bounded inclusive weather range, preserving requested date order.
+ * With partial=true, retain collected days and attach failures only to missing dates;
+ * otherwise propagate retrieval errors to the caller.
+ * @param {object} input Valid coordinates, date and optional inclusive endDate.
+ * @param {function(number): Promise<object>} fetchPage Fetch by Unix seconds under the caller's budget.
+ */
 export async function collectTimeline(input, fetchPage, { partial = false } = {}) {
   const wanted = timelineDates(input);
   const endDate = wanted.at(-1);

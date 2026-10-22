@@ -13,6 +13,14 @@ const text = (value) =>
     ? value.trim()
     : null;
 
+/**
+ * Normalize one date from a validated, metric timeline into the shared weather model.
+ * Missing or invalid measurements stay null; availability requires a usable display signal.
+ * @param {object} timeline Collected records with a validated provider IANA timezone.
+ * @param {string} date Requested YYYY-MM-DD date in the provider's timezone.
+ * @param {number} now Current Unix time in milliseconds, used for forecast classification.
+ * @returns {{model: object, available: boolean}} Includes provisional forecast metadata.
+ */
 export function normalizeTimelineDay(timeline, date, now) {
   const raw = timeline.days.find((day) => day.date === date)?.record ?? {};
   let lowC = numberIn(raw.temp?.min, -273.15, 1000);

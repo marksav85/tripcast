@@ -9,6 +9,7 @@ const paths = {
   '/api/reverse-geocode': 'geo/1.0/reverse',
   '/api/weather': TIMELINE_PATH.slice(1),
 };
+/** Build an allowlisted OpenWeather URL; credentials are added only at the fetch boundary. */
 export function providerURL(route, input) {
   const url = new URL(paths[route], 'https://api.openweathermap.org/');
   const params =
@@ -25,6 +26,11 @@ export function providerURL(route, input) {
   return url;
 }
 
+/**
+ * Create an isolate-local provider adapter with concurrency limits and quota cooldown.
+ * Pagination and retries share one operation's call budget and deadline; a supplied
+ * retrieval context additionally coordinates limits across trip destination chunks.
+ */
 export function createProvider({ upstreamFetch, sleep, timeoutMs, now }) {
   let active = 0;
   let cooldownUntil = 0;

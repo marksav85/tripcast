@@ -48,7 +48,12 @@ function configuration(env) {
   }
 }
 
-/** Verify a raw access token. No request routing, provider mode, or decoded-claim fallback. */
+/**
+ * Verify a raw access token against configured issuer, audience and ES256 JWKS.
+ * Identity comes only from verified claims; decoding alone is never an auth fallback.
+ * @returns {Promise<{userId: string, role: string, expiresAt: number}>} Expiry is Unix seconds.
+ * @throws {ApiError} UNAUTHENTICATED for rejected tokens; AUTH_UNAVAILABLE for resolver/config failures.
+ */
 export async function verifySupabaseAccessToken(token, env = {}) {
   const config = configuration(env);
   if (!cached || cached.key !== config.key) {

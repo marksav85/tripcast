@@ -46,6 +46,8 @@ export default function useSavedTrip(ownerId) {
     },
     [session],
   );
+  // A conflict or expired identity blocks further writes until a successful load
+  // establishes a usable saved snapshot; local edits must not silently overwrite it.
   const failed = useCallback(
     (result) =>
       update({

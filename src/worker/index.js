@@ -32,6 +32,11 @@ function tripLimit(value, fallback) {
   return Number(value);
 }
 
+/**
+ * Assemble API routing and static asset handling with isolate-local caches and limits.
+ * Dependency overrides supply clocks, transport and cache access for tests; protected
+ * routes authenticate before invoking shared weather retrieval or account deletion.
+ */
 export function createWorker(options = {}) {
   const now = options.now ?? (() => Date.now());
   const provider = createProvider({

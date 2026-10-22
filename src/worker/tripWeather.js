@@ -35,6 +35,8 @@ export async function retrieveTripWeather(
           }
         : null;
     });
+    // Each destination owns its arrival-inclusive, departure-exclusive dates. Batch
+    // at most ten dates per range; unavailable dates retain their original output slots.
     const chunks = [];
     for (const destination of allocation.trip.destinations) {
       const assigned = allocation.allocations

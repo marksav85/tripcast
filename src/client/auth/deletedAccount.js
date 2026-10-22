@@ -6,7 +6,12 @@ export function clearDeletedAccountStorage(storageKey) {
   }
 }
 
-/** Deletion is already confirmed. SDK/network failures must not turn it into failure. */
+/**
+ * Finish local cleanup after the server has confirmed account deletion.
+ * Stop refresh, bound local sign-out to one second, then clear persistence again before
+ * navigation to remove persistence left behind by failed SDK cleanup.
+ * SDK/network failures must not turn a confirmed deletion into a failed deletion.
+ */
 export async function finishAccountDeletion(
   client,
   {

@@ -11,6 +11,12 @@ const unavailable = () =>
     'Could not delete your account. Please try again later.',
   );
 
+/**
+ * Hard-delete only the verified caller after an explicit DELETE confirmation.
+ * The administrative client bypasses user-scoped access, so neither a body-supplied ID
+ * nor JWT claims alone may select its target: Auth must confirm the same user still exists.
+ * @returns {Promise<{deleted: boolean}>} Success only after the administrative deletion completes.
+ */
 export async function deleteAccount(
   request,
   env,

@@ -49,7 +49,11 @@ export function addCalendarDays(date, amount) {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(remaining + 1).padStart(2, '0')}`;
 }
 
-/** Half-open [startDate,endDate) count; invalid or nonpositive ranges throw. */
+/**
+ * Count [startDate, endDate); invalid or nonpositive ranges throw.
+ * Departure belongs to the next stay, so adjacent destinations never own the same weather date.
+ * Calendar ordinals avoid DST-dependent elapsed-hour arithmetic.
+ */
 export function coveredDayCount(startDate, endDate) {
   const count = calendarDayNumber(endDate) - calendarDayNumber(startDate);
   if (count < 1) throw new RangeError('Departure must be after arrival.');

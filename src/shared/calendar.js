@@ -1,4 +1,5 @@
-// Calendar dates stay YYYY-MM-DD strings; they are not midnight instants.
+// Travel dates describe local calendar days, not instants: timezone conversion
+// could move an arrival or departure to a different day.
 export function isCalendarDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
@@ -7,6 +8,7 @@ export function isCalendarDate(value) {
   return day <= [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
 }
 
+/** Return YYYY-MM-DD in the supplied IANA zone, or the runtime's local zone when omitted. */
 export function todayDate(now = new Date(), timeZone) {
   if (timeZone) {
     const parts = new Intl.DateTimeFormat('en-CA', {

@@ -6,8 +6,13 @@ const numberIn = (value, min, max) =>
     ? value
     : null;
 
-// Legacy 3.0 day_summary compatibility adapter for credential-free demos.
-// Live 4.0 responses use normalizeTimeline.js, never these raw-field semantics.
+/**
+ * Adapt legacy 3.0 demo summaries; live 4.0 responses use normalizeTimelineDay.
+ * @param {object} data Provider summary matching query.date.
+ * @param {object} query Requested date and validated location coordinates.
+ * @param {'metric'|'standard'} units Celsius or Kelvin input; output is always Celsius.
+ * @returns {{model: object, available: boolean}} Invalid measurements remain null, not zero.
+ */
 export function normalizeDaySummary(data, query, units = 'metric') {
   if (
     !data ||

@@ -124,7 +124,12 @@ export function loadMyTrip() {
   });
 }
 
-/** Caller supplies a UUID for creation and retains it; expectedRevision is a JSON number, never a string. */
+/**
+ * Save a validated draft through the revision-checked RPC, returning {ok,data,error}.
+ * Caller retains its creation UUID; expectedRevision is numeric: 0 for creation,
+ * otherwise the last loaded/saved revision. A stale revision yields CONFLICT rather
+ * than overwriting another tab's edits; the caller must reload before retrying.
+ */
 export function saveMyTrip({ tripId, expectedRevision, draft } = {}) {
   return authenticated(async () => {
     if (!uuid(tripId) || !revision(expectedRevision, 0)) return failure('INVALID_REQUEST');
@@ -141,6 +146,7 @@ export function saveMyTrip({ tripId, expectedRevision, draft } = {}) {
   });
 }
 
+/** Delete only the supplied saved revision; stale callers receive CONFLICT and must reload. */
 export function deleteMyTrip({ tripId, expectedRevision } = {}) {
   return authenticated(async () => {
     if (!uuid(tripId) || !revision(expectedRevision)) return failure('INVALID_REQUEST');

@@ -11,7 +11,11 @@ export const CLOTHING_THRESHOLDS = Object.freeze({
   highUV: 6,
 });
 
-/** Informal packing guidance from normalized daily data, not a weather guarantee. */
+/**
+ * Informal packing guidance from normalized daily data, not a weather guarantee.
+ * Uses both daily extremes and feels-like readings; missing signals never imply mild weather.
+ * @returns {{primary: string, additional: string[], provisional: boolean}} Deduplicated advice.
+ */
 export function clothingAdvice(model = {}) {
   const t = CLOTHING_THRESHOLDS;
   const temperatures = [model.lowC, model.highC, ...Object.values(model.feelsLikeC ?? {})].filter(
@@ -44,6 +48,8 @@ export function clothingAdvice(model = {}) {
   let primary;
   let coversThermal = false;
   let coversSunglasses = false;
+  // Primary advice prioritizes rain, cold and wind before heat or sun. Coverage flags
+  // keep supplementary advice from repeating protection already named in the primary item.
   if (rain && (cold || cool)) {
     primary = cold ? 'Rain jacket and warm layers' : 'Rain jacket and light layers';
     coversThermal = true;
