@@ -34,8 +34,5 @@ tree.txt
 .env*
 !.env.example
 
-# docs
-docs
-
 # Public production defaults; key belongs in ignored .env.production.local
 !.env.production
