@@ -17,10 +17,3 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
-// Animation rendering depends on canvas, which jsdom does not implement.
-// Keep the loading/motion branch observable without testing Lottie internals.
-vi.mock('lottie-react', async () => {
-  const { createElement } = await import('react');
-  return { default: () => createElement('div', { 'data-testid': 'loading-animation' }) };
-});

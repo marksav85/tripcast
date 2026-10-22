@@ -31,7 +31,6 @@
     "@supabase/supabase-js": "2.117.3",
     "clsx": "2.1.1",
     "jose": "6.2.12",
-    "lottie-react": "^2.4.0",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-day-picker": "9.13.2",
