@@ -92,7 +92,7 @@ describe('Worker routes and validation', () => {
     expect(url.origin).toBe('https://api.openweathermap.org');
     expect(url.searchParams.get('q')).toBe('São Paulo &appid=bad');
     expect(url.searchParams.getAll('appid')).toEqual([env.OPENWEATHER_API_KEY]);
-    expect(upstreamFetch.mock.calls[0][1].redirect).toBe('error');
+    expect(upstreamFetch.mock.calls[0][1].redirect).toBe('manual');
   });
   it('rejects malformed JSON, wrong content type and unapproved dates', async () => {
     const { handler, upstreamFetch } = worker();
@@ -178,7 +178,7 @@ describe('Provider safety and normalization', () => {
     const { handler } = worker({ upstreamFetch: vi.fn(async () => rawResponse([])) });
     expect((await (await handler.fetch(request(), env)).json()).data).toEqual([]);
   });
-  it.each([401, 403, 429, 302, 400])(
+  it.each([401, 403, 429, 400])(
     'does not retry upstream HTTP %i or expose raw errors',
     async (status) => {
       const upstreamFetch = vi.fn(async () =>
@@ -191,6 +191,31 @@ describe('Provider safety and normalization', () => {
       expect(upstreamFetch).toHaveBeenCalledTimes(1);
     },
   );
+  it('rejects upstream HTTP 302 without following it, with one bounded retry and sanitized errors', async () => {
+    const sleep = vi.fn(async () => {});
+    const upstreamFetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ message: env.OPENWEATHER_API_KEY }), {
+          status: 302,
+          headers: { Location: 'https://other.invalid/', 'Content-Type': 'application/json' },
+        }),
+    );
+    const { handler } = worker({ upstreamFetch, sleep });
+    const response = await handler.fetch(request(), env);
+    expect(response.status).toBe(502);
+    const payload = await response.json();
+    expect(payload).toMatchObject({
+      error: { code: 'UPSTREAM_FAILURE', message: 'Weather service failed. Please retry.' },
+    });
+    expect(JSON.stringify(payload)).not.toContain(env.OPENWEATHER_API_KEY);
+    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledExactlyOnceWith(250);
+    for (const [url, options] of upstreamFetch.mock.calls) {
+      expect(new URL(url).origin).toBe('https://api.openweathermap.org');
+      expect(options.redirect).toBe('manual');
+    }
+    expect(upstreamFetch.mock.calls[1][0]).toBe(upstreamFetch.mock.calls[0][0]);
+  });
   it('retries one transient 5xx only, then succeeds', async () => {
     const upstreamFetch = vi
       .fn()

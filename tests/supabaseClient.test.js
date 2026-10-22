@@ -17,7 +17,12 @@ it('initializes one persistent refreshing client across repeated imports', async
     'http://127.0.0.1:54321',
     'sb_publishable_synthetic_test_public_value',
     {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      auth: {
+        storageKey: 'sb-127-auth-token',
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
     },
   );
 });

@@ -342,7 +342,7 @@ describe('bounded range pagination', () => {
       expect(u.pathname).toBe(TIMELINE_PATH);
       expect(u.searchParams.get('appid')).toBe(env.OPENWEATHER_API_KEY);
       expect(u.searchParams.get('units')).toBe('metric');
-      expect(options.redirect).toBe('error');
+      expect(options.redirect).toBe('manual');
       expect(url).not.toContain('synthetic-pagination-marker');
     }
   });

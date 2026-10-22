@@ -97,7 +97,7 @@ it('makes weather available after saving the first trip', async () => {
   fireEvent.change(screen.getByLabelText('Trip departure date'), {
     target: { value: tripDraft.endDate },
   });
-  fireEvent.click(screen.getByText('Add destination'));
+  fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
   const { fetchMock, apiResponse } = await import('./fixtures/api.js');
   fetchMock.mockResolvedValueOnce(
     apiResponse([{ name: 'Paris', country: 'FR', lat: 48.8566, lon: 2.3522 }]),
@@ -158,8 +158,14 @@ it('deletes weather together with the saved baseline', async () => {
   await screen.findByDisplayValue('Summer');
   refresh();
   await screen.findByText(/Some dates could not/);
-  fireEvent.click(screen.getByText('Delete Trip'));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Trip' }));
+  const dialog = await screen.findByRole('alertdialog', { name: 'Delete this trip?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Delete Trip' }));
   await screen.findByText(/Trip deleted/);
+  expect(deleteMyTrip).toHaveBeenCalledExactlyOnceWith({
+    tripId: savedTrip().id,
+    expectedRevision: savedTrip().revision,
+  });
   expect(screen.queryByLabelText('Saved trip weather preview')).not.toBeInTheDocument();
 });
 it.each(['b', null])('clears and cancels weather on account change/sign-out %s', async (user) => {
