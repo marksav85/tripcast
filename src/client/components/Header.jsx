@@ -66,10 +66,13 @@ export default function Header({
               }}
               aria-label="TripCast — Home"
             >
-              <span className="shell-brand-icon" aria-hidden="true">
-                ✧
-              </span>
-              <span>TripCast</span>
+              <img
+                className="shell-brand-logo"
+                src="/media/brand--logo.webp"
+                alt="TripCast"
+                width="1440"
+                height="506"
+              />
             </a>
             <nav aria-label="Weather and trip" className="shell-navigation">
               <button

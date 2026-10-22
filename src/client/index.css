@@ -55,21 +55,20 @@ body {
   padding: var(--space-md) var(--page-gutter);
 }
 .shell-brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-sm);
-  font: 700 1.125rem var(--font-heading);
-  letter-spacing: -0.025em;
+  justify-self: start;
 }
-.shell-brand-icon {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-control);
-  color: var(--color-primary);
-  background: var(--color-accent);
-  font-size: 1.75rem;
+.shell-brand-logo {
+  display: block;
+  width: 10rem;
+  max-width: 100%;
+  height: auto;
+}
+@media (max-width: 480px) {
+  .shell-brand-logo {
+    width: 9rem;
+  }
 }
 .shell-navigation,
 .shell-auth-actions,

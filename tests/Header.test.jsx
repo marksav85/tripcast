@@ -142,3 +142,15 @@ it('returns an authenticated account to public weather without clearing its sess
   expect(auth.client.auth.signOut).not.toHaveBeenCalled();
   expect(screen.getByText('Signed in as a@example.test')).toBeVisible();
 });
+
+it('renders the approved WebP logo inside the existing homepage link', () => {
+  setup();
+  const home = screen.getByRole('link', { name: 'TripCast — Home' });
+  const logo = within(home).getByRole('img', { name: 'TripCast' });
+  expect(home).toHaveAttribute('href', '/');
+  expect(logo).toHaveAttribute('src', '/media/brand--logo.webp');
+  expect(logo).toHaveAttribute('width', '1440');
+  expect(logo).toHaveAttribute('height', '506');
+  expect(home.textContent.trim()).toBe('');
+  expect(screen.getAllByRole('link', { name: /TripCast/ })).toHaveLength(1);
+});
