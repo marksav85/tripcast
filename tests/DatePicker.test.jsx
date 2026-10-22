@@ -9,8 +9,22 @@ function setup({ initial = '2026-12-31', ...props } = {}) {
   const changed = vi.fn();
   function Field() {
     const [value, setValue] = useState(initial);
-    return <><label htmlFor="test-date">Travel date</label><DatePicker id="test-date" label="Travel date" value={value}
-      onChange={(next) => { changed(next); setValue(next); }} {...props} /><button>Outside</button></>;
+    return (
+      <>
+        <label htmlFor="test-date">Travel date</label>
+        <DatePicker
+          id="test-date"
+          label="Travel date"
+          value={value}
+          onChange={(next) => {
+            changed(next);
+            setValue(next);
+          }}
+          {...props}
+        />
+        <button>Outside</button>
+      </>
+    );
   }
   return { user: userEvent.setup(), changed, ...render(<Field />) };
 }
@@ -39,8 +53,10 @@ it('selects a day across the year boundary and reopens with that selection', asy
 });
 it('supports arrow-key date selection and closes after Enter', async () => {
   const { user, changed } = setup();
-  await user.tab(); expect(screen.getByLabelText('Travel date')).toHaveFocus();
-  await user.tab(); expect(trigger()).toHaveFocus();
+  await user.tab();
+  expect(screen.getByLabelText('Travel date')).toHaveFocus();
+  await user.tab();
+  expect(trigger()).toHaveFocus();
   await user.keyboard('{Enter}');
   await waitFor(() => expect(day(/December 31st, 2026, selected/)).toHaveFocus());
   await user.keyboard('{ArrowRight}{Enter}');
@@ -55,7 +71,8 @@ it('handles an empty date and explicit clearing without inventing a selection', 
   expect(changed).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Close calendar' }));
   fireEvent.change(screen.getByLabelText('Travel date'), { target: { value: '2028-02-29' } });
-  await user.click(trigger()); await user.click(screen.getByRole('button', { name: 'Clear date' }));
+  await user.click(trigger());
+  await user.click(screen.getByRole('button', { name: 'Clear date' }));
   expect(changed).toHaveBeenLastCalledWith('');
   expect(screen.getByLabelText('Travel date')).toHaveValue('');
 });
@@ -66,8 +83,10 @@ it('disables calendar choices outside inclusive bounds and never clamps the cont
   expect(day(/January 21st, 2027/)).toBeDisabled();
   expect(day(/January 10th, 2027/)).toBeEnabled();
   expect(day(/January 20th, 2027/)).toBeEnabled();
-  await user.click(day(/January 9th, 2027/)); expect(changed).not.toHaveBeenCalled();
-  await user.click(day(/January 20th, 2027/)); expect(changed).toHaveBeenLastCalledWith('2027-01-20');
+  await user.click(day(/January 9th, 2027/));
+  expect(changed).not.toHaveBeenCalled();
+  await user.click(day(/January 20th, 2027/));
+  expect(changed).toHaveBeenLastCalledWith('2027-01-20');
   fireEvent.change(screen.getByLabelText('Travel date'), { target: { value: '2027-01-25' } });
   expect(screen.getByLabelText('Travel date')).toHaveValue('2027-01-25');
 });
@@ -81,19 +100,28 @@ it('keeps partial and invalid drafts visible without sending them to application
 });
 it('closes when clicking outside and respects disabled controls', async () => {
   const { user, unmount } = setup();
-  await user.click(trigger()); await user.click(screen.getByRole('button', { name: 'Outside' }));
+  await user.click(trigger());
+  await user.click(screen.getByRole('button', { name: 'Outside' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  unmount(); setup({ disabled: true });
-  expect(trigger()).toBeDisabled(); expect(screen.getByLabelText('Travel date')).toBeDisabled();
+  unmount();
+  setup({ disabled: true });
+  expect(trigger()).toBeDisabled();
+  expect(screen.getByLabelText('Travel date')).toBeDisabled();
 });
-it.each(['2026-12-31', '2027-01-01', '2028-02-29', '2026-03-29', '2026-10-25', '0099-01-01'])('round-trips calendar day %s using local fields', (value) => {
-  const date = toPickerDate(value);
-  expect(date.getHours()).toBe(12);
-  expect(fromPickerDate(date)).toBe(value);
-});
-it.each(['', '2027-02-29', '2026-13-01', '2026-02-30', 'not a date'])('does not normalize invalid calendar day %s', (value) => {
-  expect(toPickerDate(value)).toBeUndefined();
-});
+it.each(['2026-12-31', '2027-01-01', '2028-02-29', '2026-03-29', '2026-10-25', '0099-01-01'])(
+  'round-trips calendar day %s using local fields',
+  (value) => {
+    const date = toPickerDate(value);
+    expect(date.getHours()).toBe(12);
+    expect(fromPickerDate(date)).toBe(value);
+  },
+);
+it.each(['', '2027-02-29', '2026-13-01', '2026-02-30', 'not a date'])(
+  'does not normalize invalid calendar day %s',
+  (value) => {
+    expect(toPickerDate(value)).toBeUndefined();
+  },
+);
 
 it.each([
   ['en-GB', '04/05/2026', '2026-05-04', '04/05/2026'],
@@ -141,7 +169,6 @@ it('preserves keyboard edits until blur and then uses the preferred display form
   await user.tab();
   expect(field).toHaveValue('10/25/2026');
 });
-
 
 it('defaults to day-first despite an American browser preference', async () => {
   vi.stubGlobal('navigator', { language: 'en-US' });

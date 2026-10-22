@@ -36,7 +36,10 @@ export function WeatherProvider({ children }) {
     geolocation.cancel();
     const { query, errors } = validateLookup(city, date);
     setFieldErrors(errors);
-    if (Object.keys(errors).length) { weather.cancelPending(); return errors; }
+    if (Object.keys(errors).length) {
+      weather.cancelPending();
+      return errors;
+    }
     void weather.run({ city: query, date, location: selectedLocation });
     return errors;
   };
@@ -64,12 +67,23 @@ export function WeatherProvider({ children }) {
   };
 
   return (
-    <WeatherContext.Provider value={{
-      city, date, changeCity, changeDate, selectedLocation, fieldErrors,
-      submit, resetAll, handleUseCurrentLocation,
-      setToday: () => changeDate(todayDate()),
-      weather, geolocation, retry,
-    }}>
+    <WeatherContext.Provider
+      value={{
+        city,
+        date,
+        changeCity,
+        changeDate,
+        selectedLocation,
+        fieldErrors,
+        submit,
+        resetAll,
+        handleUseCurrentLocation,
+        setToday: () => changeDate(todayDate()),
+        weather,
+        geolocation,
+        retry,
+      }}
+    >
       {children}
     </WeatherContext.Provider>
   );

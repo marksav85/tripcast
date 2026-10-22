@@ -1,15 +1,22 @@
 import { isCalendarDate } from '../shared/calendar.js';
 import { validCoordinates } from '../shared/locations.js';
 
-const numberIn = (value, min, max) => typeof value === 'number'
-  && Number.isFinite(value) && value >= min && value <= max ? value : null;
+const numberIn = (value, min, max) =>
+  typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+    ? value
+    : null;
 
 // Legacy 3.0 day_summary compatibility adapter for credential-free demos.
 // Live 4.0 responses use normalizeTimeline.js, never these raw-field semantics.
 export function normalizeDaySummary(data, query, units = 'metric') {
-  if (!data || typeof data !== 'object' || Array.isArray(data)
-    || !isCalendarDate(data.date) || data.date !== query.date
-    || !validCoordinates(query.location?.lat, query.location?.lon)) {
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    Array.isArray(data) ||
+    !isCalendarDate(data.date) ||
+    data.date !== query.date ||
+    !validCoordinates(query.location?.lat, query.location?.lon)
+  ) {
     throw new Error('The weather service returned an invalid date or response. Please retry.');
   }
   if (units !== 'metric' && units !== 'standard') throw new Error('Unsupported temperature units.');
@@ -19,17 +26,26 @@ export function normalizeDaySummary(data, query, units = 'metric') {
   };
   let lowC = temperature(data.temperature?.min);
   let highC = temperature(data.temperature?.max);
-  if (lowC !== null && highC !== null && lowC > highC) { lowC = null; highC = null; }
+  if (lowC !== null && highC !== null && lowC > highC) {
+    lowC = null;
+    highC = null;
+  }
   const model = {
     date: data.date,
     location: { ...query.location },
     source: 'OpenWeather daily summary',
     timeZone: null, // Do not infer an IANA zone from coordinates or a fixed offset.
-    lowC, highC,
+    lowC,
+    highC,
     cloudPercent: numberIn(data.cloud_cover?.afternoon, 0, 100),
     precipitationMm: numberIn(data.precipitation?.total, 0, Number.MAX_SAFE_INTEGER),
     condition: null, // This endpoint does not provide a validated condition code.
     semantics: { cloud: 'provider snapshot', precipitation: 'daily liquid-water equivalent' },
   };
-  return { model, available: [lowC, highC, model.cloudPercent, model.precipitationMm].some((value) => value !== null) };
+  return {
+    model,
+    available: [lowC, highC, model.cloudPercent, model.precipitationMm].some(
+      (value) => value !== null,
+    ),
+  };
 }

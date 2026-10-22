@@ -9,9 +9,18 @@ export const AlertDialogAction = AlertDialogPrimitive.Action;
 export const AlertDialogCancel = AlertDialogPrimitive.Cancel;
 export const AlertDialogTitle = AlertDialogPrimitive.Title;
 export const AlertDialogDescription = AlertDialogPrimitive.Description;
-export const AlertDialogContent = forwardRef(function AlertDialogContent({ className, ...props }, ref) {
-  return <AlertDialogPrimitive.Portal>
-    <AlertDialogPrimitive.Overlay className="tripcast-alert-overlay" />
-    <AlertDialogPrimitive.Content ref={ref} className={cn('tripcast-alert', className)} {...props} />
-  </AlertDialogPrimitive.Portal>;
+export const AlertDialogContent = forwardRef(function AlertDialogContent(
+  { className, ...props },
+  ref,
+) {
+  return (
+    <AlertDialogPrimitive.Portal>
+      <AlertDialogPrimitive.Overlay className="tripcast-alert-overlay" />
+      <AlertDialogPrimitive.Content
+        ref={ref}
+        className={cn('tripcast-alert', className)}
+        {...props}
+      />
+    </AlertDialogPrimitive.Portal>
+  );
 });

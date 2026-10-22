@@ -12,9 +12,17 @@ export function forecastPolicy(date, timeZone, now) {
   const today = todayDate(new Date(now), timeZone);
   const distance = (stamp(date) - stamp(today)) / dayMs;
   const forecastType = distance < 0 ? 'historical' : distance < 8 ? 'standard' : 'long-range';
-  return { forecastType, forecastLabel: forecastType === 'standard' ? 'Standard forecast'
-    : forecastType === 'long-range' ? 'Long-range estimate' : 'Historical weather',
-  forecastPolicy: 'TripCast provisional eight-day policy', near: distance < 8 };
+  return {
+    forecastType,
+    forecastLabel:
+      forecastType === 'standard'
+        ? 'Standard forecast'
+        : forecastType === 'long-range'
+          ? 'Long-range estimate'
+          : 'Historical weather',
+    forecastPolicy: 'TripCast provisional eight-day policy',
+    near: distance < 8,
+  };
 }
 
 // Provider links are untrusted metadata. Extract approved parameters only;
@@ -22,9 +30,21 @@ export function forecastPolicy(date, timeZone, now) {
 export function paginationStart(link, input) {
   if (typeof link !== 'string' || link.length > 2048) throw malformed();
   let url;
-  try { url = new URL(link); } catch { throw malformed(); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.hostname !== 'api.openweathermap.org'
-    || url.port || url.username || url.password || url.hash || url.pathname !== TIMELINE_PATH) throw malformed();
+  try {
+    url = new URL(link);
+  } catch {
+    throw malformed();
+  }
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    url.hostname !== 'api.openweathermap.org' ||
+    url.port ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    url.pathname !== TIMELINE_PATH
+  )
+    throw malformed();
   const allowed = ['cnt', 'lat', 'lon', 'start', 'appid', 'units', 'lang'];
   for (const key of url.searchParams.keys()) {
     if (!allowed.includes(key) || url.searchParams.getAll(key).length !== 1) throw malformed();
@@ -34,26 +54,55 @@ export function paginationStart(link, input) {
     if (!value || !/^-?\d+(\.\d+)?$/.test(value)) throw malformed();
     return Number(value);
   };
-  if (Math.abs(numeric('lat') - input.lat) > 0.00011 || Math.abs(numeric('lon') - input.lon) > 0.00011
-    || url.searchParams.get('cnt') !== '10'
-    || (url.searchParams.has('units') && url.searchParams.get('units') !== 'metric')
-    || (url.searchParams.has('lang') && url.searchParams.get('lang') !== 'en')) throw malformed();
+  if (
+    Math.abs(numeric('lat') - input.lat) > 0.00011 ||
+    Math.abs(numeric('lon') - input.lon) > 0.00011 ||
+    url.searchParams.get('cnt') !== '10' ||
+    (url.searchParams.has('units') && url.searchParams.get('units') !== 'metric') ||
+    (url.searchParams.has('lang') && url.searchParams.get('lang') !== 'en')
+  )
+    throw malformed();
   const start = numeric('start');
-  if (!Number.isSafeInteger(start) || start < 0 || !Number.isFinite(new Date(start * 1000).getTime())) throw malformed();
+  if (
+    !Number.isSafeInteger(start) ||
+    start < 0 ||
+    !Number.isFinite(new Date(start * 1000).getTime())
+  )
+    throw malformed();
   return start;
 }
 
 export function validateTimelinePage(raw, input) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)
-    || !validCoordinates(raw.lat, raw.lon) || Math.abs(raw.lat - input.lat) > 0.00011
-    || Math.abs(raw.lon - input.lon) > 0.00011 || typeof raw.timezone !== 'string'
-    || raw.timezone.length > 100 || !Array.isArray(raw.data) || raw.data.length > 10) throw malformed();
-  try { todayDate(new Date(0), raw.timezone); } catch { throw malformed(); }
+  if (
+    !raw ||
+    typeof raw !== 'object' ||
+    Array.isArray(raw) ||
+    !validCoordinates(raw.lat, raw.lon) ||
+    Math.abs(raw.lat - input.lat) > 0.00011 ||
+    Math.abs(raw.lon - input.lon) > 0.00011 ||
+    typeof raw.timezone !== 'string' ||
+    raw.timezone.length > 100 ||
+    !Array.isArray(raw.data) ||
+    raw.data.length > 10
+  )
+    throw malformed();
+  try {
+    todayDate(new Date(0), raw.timezone);
+  } catch {
+    throw malformed();
+  }
   let previous = -1;
   const days = raw.data.map((record) => {
-    if (!record || typeof record !== 'object' || Array.isArray(record)
-      || !Number.isSafeInteger(record.dt) || record.dt < 0 || record.dt < previous
-      || !Number.isFinite(new Date(record.dt * 1000).getTime())) throw malformed();
+    if (
+      !record ||
+      typeof record !== 'object' ||
+      Array.isArray(record) ||
+      !Number.isSafeInteger(record.dt) ||
+      record.dt < 0 ||
+      record.dt < previous ||
+      !Number.isFinite(new Date(record.dt * 1000).getTime())
+    )
+      throw malformed();
     previous = record.dt;
     return { date: todayDate(new Date(record.dt * 1000), raw.timezone), record };
   });
@@ -67,8 +116,11 @@ export function validateTimelinePage(raw, input) {
 export function timelineDates(input) {
   const endDate = input.endDate ?? input.date;
   const count = (stamp(endDate) - stamp(input.date)) / dayMs + 1;
-  if (!isCalendarDate(input.date) || !isCalendarDate(endDate) || count < 1 || count > 10) throw malformed();
-  return Array.from({ length: count }, (_, i) => new Date(stamp(input.date) + i * dayMs).toISOString().slice(0, 10));
+  if (!isCalendarDate(input.date) || !isCalendarDate(endDate) || count < 1 || count > 10)
+    throw malformed();
+  return Array.from({ length: count }, (_, i) =>
+    new Date(stamp(input.date) + i * dayMs).toISOString().slice(0, 10),
+  );
 }
 
 export async function collectTimeline(input, fetchPage, { partial = false } = {}) {
@@ -84,21 +136,37 @@ export async function collectTimeline(input, fetchPage, { partial = false } = {}
       if (timeZone && parsed.timeZone !== timeZone) throw malformed();
       timeZone = parsed.timeZone;
       for (const { date, record } of parsed.days) {
-        if (date >= input.date && date <= endDate && !selected.has(date)) selected.set(date, record);
+        if (date >= input.date && date <= endDate && !selected.has(date))
+          selected.set(date, record);
       }
       if (wanted.every((date) => selected.has(date))) break;
       if (parsed.next === null) break;
       // Advance only within a small window around the requested interval. Guard
       // looping, backwards, empty and arbitrary distant continuation pages.
-      if (!parsed.days.length || parsed.next <= start || parsed.next > stamp(endDate) / 1000 + 11 * 86400) throw malformed();
-      if (page + 1 === MAX_TIMELINE_PAGES) throw new ApiError('UPSTREAM_INVALID', 502, 'Weather coverage exceeded the request limit.');
+      if (
+        !parsed.days.length ||
+        parsed.next <= start ||
+        parsed.next > stamp(endDate) / 1000 + 11 * 86400
+      )
+        throw malformed();
+      if (page + 1 === MAX_TIMELINE_PAGES)
+        throw new ApiError('UPSTREAM_INVALID', 502, 'Weather coverage exceeded the request limit.');
       start = parsed.next;
     }
   } catch (error) {
     if (!partial) throw error;
-    failure = error instanceof ApiError ? error : new ApiError('UPSTREAM_FAILURE', 502, 'Weather service failed. Please retry.');
+    failure =
+      error instanceof ApiError
+        ? error
+        : new ApiError('UPSTREAM_FAILURE', 502, 'Weather service failed. Please retry.');
   }
-  const result = { timezone: timeZone, days: wanted.map((date) => ({ date, record: selected.get(date) ?? null,
-    ...(partial && failure && !selected.has(date) ? { error: failure } : {}) })) };
+  const result = {
+    timezone: timeZone,
+    days: wanted.map((date) => ({
+      date,
+      record: selected.get(date) ?? null,
+      ...(partial && failure && !selected.has(date) ? { error: failure } : {}),
+    })),
+  };
   return partial ? { ...result, complete: !failure, error: failure ?? null } : result;
 }

@@ -1,4 +1,14 @@
-import { faBolt, faCloudRain, faSnowflake, faSun, faCloudSun, faCloud, faSmog, faMoon, faCloudMoon } from '@fortawesome/free-solid-svg-icons';
+import {
+  faBolt,
+  faCloudRain,
+  faSnowflake,
+  faSun,
+  faCloudSun,
+  faCloud,
+  faSmog,
+  faMoon,
+  faCloudMoon,
+} from '@fortawesome/free-solid-svg-icons';
 
 // Static icons from the existing dependency respect reduced motion without animation.
 export function conditionIcon(condition) {
@@ -12,4 +22,3 @@ export function conditionIcon(condition) {
   if (id === 801 || id === 802) return night ? faCloudMoon : faCloudSun;
   return faCloud;
 }
-

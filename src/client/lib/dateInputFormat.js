@@ -6,14 +6,21 @@ export function dateInputFormat(locale) {
   try {
     if (!locale) return fallback;
     const activeLocale = locale;
-    const parts = new Intl.DateTimeFormat(activeLocale, { day: '2-digit', month: '2-digit', year: 'numeric' })
-      .formatToParts(new Date(2026, 9, 25, 12));
-    const order = parts.filter(({ type }) => ['day', 'month', 'year'].includes(type)).map(({ type }) => type);
+    const parts = new Intl.DateTimeFormat(activeLocale, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).formatToParts(new Date(2026, 9, 25, 12));
+    const order = parts
+      .filter(({ type }) => ['day', 'month', 'year'].includes(type))
+      .map(({ type }) => type);
     const separator = parts.find(({ type }) => type === 'literal')?.value.trim();
     if (order.length !== 3 || !['/', '.', '-'].includes(separator)) return fallback;
     const names = { day: 'DD', month: 'MM', year: 'YYYY' };
     return { order, separator, placeholder: order.map((part) => names[part]).join(separator) };
-  } catch { return fallback; }
+  } catch {
+    return fallback;
+  }
 }
 
 export function displayInputDate(value, format) {

@@ -10,7 +10,10 @@ export function isCalendarDate(value) {
 export function todayDate(now = new Date(), timeZone) {
   if (timeZone) {
     const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     }).formatToParts(now);
     const part = (type) => parts.find((item) => item.type === type).value;
     return `${part('year')}-${part('month')}-${part('day')}`;
@@ -21,6 +24,9 @@ export function todayDate(now = new Date(), timeZone) {
 export function formatCalendarDate(value) {
   if (!isCalendarDate(value)) return 'Date unavailable';
   return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
   }).format(new Date(`${value}T00:00:00Z`));
 }

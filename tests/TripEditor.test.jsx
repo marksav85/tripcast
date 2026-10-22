@@ -3,114 +3,201 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import TripEditor from '../src/client/components/trip/TripEditor.jsx';
 import { allocateTripDates } from '../src/shared/trip.js';
-const place = { cityName: 'Paris', countryCode: 'FR', region: null, lat: 48.8566, lon: 2.3522, timeZone: 'Europe/Paris' };
-const draft = () => ({ title: 'Summer', startDate: '2027-06-01', endDate: '2027-06-05', destinations: [
-  { ...place, position: 0, arrivalDate: '2027-06-01', departureDate: '2027-06-03' },
-  { ...place, cityName: 'Rome', countryCode: 'IT', lat: 41.9028, lon: 12.4964, timeZone: 'Europe/Rome', position: 1, arrivalDate: '2027-06-03', departureDate: '2027-06-05' },
-] });
-const display = value => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split('-').reverse().join('/') : value;
-const change = (label, value) => fireEvent.change(screen.getByLabelText(label), { target: { value: display(value) } });
+const place = {
+  cityName: 'Paris',
+  countryCode: 'FR',
+  region: null,
+  lat: 48.8566,
+  lon: 2.3522,
+  timeZone: 'Europe/Paris',
+};
+const draft = () => ({
+  title: 'Summer',
+  startDate: '2027-06-01',
+  endDate: '2027-06-05',
+  destinations: [
+    { ...place, position: 0, arrivalDate: '2027-06-01', departureDate: '2027-06-03' },
+    {
+      ...place,
+      cityName: 'Rome',
+      countryCode: 'IT',
+      lat: 41.9028,
+      lon: 12.4964,
+      timeZone: 'Europe/Rome',
+      position: 1,
+      arrivalDate: '2027-06-03',
+      departureDate: '2027-06-05',
+    },
+  ],
+});
+const display = (value) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split('-').reverse().join('/') : value;
+const change = (label, value) =>
+  fireEvent.change(screen.getByLabelText(label), { target: { value: display(value) } });
 it('starts empty and limits incomplete rows to eight', () => {
-  const submit = vi.fn(); render(<TripEditor onSubmit={submit} />);
+  const submit = vi.fn();
+  render(<TripEditor onSubmit={submit} />);
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
-  for (let i=0;i<8;i++) fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+  for (let i = 0; i < 8; i++)
+    fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
   expect(screen.getByRole('button', { name: 'Add destination' })).toBeDisabled();
   expect(screen.getAllByRole('region', { name: /^Destination \d/ })).toHaveLength(8);
   expect(submit).not.toHaveBeenCalled();
 });
 it('hydrates an existing draft and submits normalized data with shared transfer-day allocation', () => {
-  const initial = draft(); const onSubmit = vi.fn(); const onChange = vi.fn(); render(<TripEditor initialDraft={initial} onSubmit={onSubmit} onChange={onChange} />);
+  const initial = draft();
+  const onSubmit = vi.fn();
+  const onChange = vi.fn();
+  render(<TripEditor initialDraft={initial} onSubmit={onSubmit} onChange={onChange} />);
   expect(screen.getByText('4 weather days across 2 destinations.')).toBeInTheDocument();
-  const result = onChange.mock.calls.at(-1)[0]; expect(result).toEqual(allocateTripDates(initial));
-  expect(result.allocations.find(x=>x.date==='2027-06-03').position).toBe(1);
-  expect(result.allocations.some(x=>x.date==='2027-06-05')).toBe(false);
-  change('Trip title', '  Updated  '); fireEvent.click(screen.getByRole('button', { name: 'Review validated draft' }));
-  expect(onSubmit).toHaveBeenCalledWith({ ...initial, title: 'Updated' }); expect(initial.title).toBe('Summer');
+  const result = onChange.mock.calls.at(-1)[0];
+  expect(result).toEqual(allocateTripDates(initial));
+  expect(result.allocations.find((x) => x.date === '2027-06-03').position).toBe(1);
+  expect(result.allocations.some((x) => x.date === '2027-06-05')).toBe(false);
+  change('Trip title', '  Updated  ');
+  fireEvent.click(screen.getByRole('button', { name: 'Review validated draft' }));
+  expect(onSubmit).toHaveBeenCalledWith({ ...initial, title: 'Updated' });
+  expect(initial.title).toBe('Summer');
   expect(screen.getByText(/Nothing has been saved/)).toBeInTheDocument();
 });
 it('keeps internal timezones when unrelated title or date fields change', () => {
-  const onChange = vi.fn(); render(<TripEditor initialDraft={draft()} onChange={onChange} />);
-  change('Trip title', 'New title'); change('Destination 1 departure', '2027-06-02');
+  const onChange = vi.fn();
+  render(<TripEditor initialDraft={draft()} onChange={onChange} />);
+  change('Trip title', 'New title');
+  change('Destination 1 departure', '2027-06-02');
   expect(screen.getByLabelText('Destination 2 arrival')).toHaveValue('03/06/2027');
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
   change('Destination 1 departure', '2027-06-03');
-  expect(onChange.mock.calls.at(-1)[0].trip.destinations.map(d => d.timeZone)).toEqual(['Europe/Paris', 'Europe/Rome']);
+  expect(onChange.mock.calls.at(-1)[0].trip.destinations.map((d) => d.timeZone)).toEqual([
+    'Europe/Paris',
+    'Europe/Rome',
+  ]);
   expect(screen.queryByText(/timezone/i)).not.toBeInTheDocument();
 });
-it.each(['2027-06-02','2027-06-04','2027-06-01'])('rejects gaps, overlaps and zero stays %s without shifting neighbors', (value) => {
-  render(<TripEditor initialDraft={draft()} />); change('Destination 1 departure', value);
-  expect(screen.getByLabelText('Destination 2 arrival')).toHaveValue('03/06/2027');
-  expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
-  expect(screen.queryByText('4 weather days across 2 destinations.')).not.toBeInTheDocument();
-});
+it.each(['2027-06-02', '2027-06-04', '2027-06-01'])(
+  'rejects gaps, overlaps and zero stays %s without shifting neighbors',
+  (value) => {
+    render(<TripEditor initialDraft={draft()} />);
+    change('Destination 1 departure', value);
+    expect(screen.getByLabelText('Destination 2 arrival')).toHaveValue('03/06/2027');
+    expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
+    expect(screen.queryByText('4 weather days across 2 destinations.')).not.toBeInTheDocument();
+  },
+);
 it('reorders stable cards and recalculates positions without shifting dates', () => {
-  const onChange = vi.fn(); render(<TripEditor initialDraft={draft()} onChange={onChange} />);
+  const onChange = vi.fn();
+  render(<TripEditor initialDraft={draft()} onChange={onChange} />);
   fireEvent.click(screen.getByRole('button', { name: 'Move destination 2 up' }));
   expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue('03/06/2027');
-  expect(within(screen.getByRole('region', { name: 'Destination 1' })).getByText('Selected city:', { selector: 'output' })).toHaveTextContent('Selected city: Rome');
+  expect(
+    within(screen.getByRole('region', { name: 'Destination 1' })).getByText('Selected city:', {
+      selector: 'output',
+    }),
+  ).toHaveTextContent('Selected city: Rome');
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Move destination 1 down' }));
-  expect(onChange.mock.calls.at(-1)[0].trip.destinations.map(x=>x.position)).toEqual([0,1]);
+  expect(onChange.mock.calls.at(-1)[0].trip.destinations.map((x) => x.position)).toEqual([0, 1]);
 });
 it('removes without stretching neighbors and permits removal of all rows', () => {
-  render(<TripEditor initialDraft={draft()} />); fireEvent.click(screen.getByRole('button', { name: 'Remove destination 1' }));
+  render(<TripEditor initialDraft={draft()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove destination 1' }));
   expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue('03/06/2027');
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Remove destination 1' }));
   expect(screen.queryByLabelText('Timezone')).not.toBeInTheDocument();
 });
 it('changing overall bounds never rewrites destination dates', () => {
-  render(<TripEditor initialDraft={draft()} />); change('Trip arrival date','2027-05-31'); change('Trip departure date','2027-06-06');
+  render(<TripEditor initialDraft={draft()} />);
+  change('Trip arrival date', '2027-05-31');
+  change('Trip departure date', '2027-06-06');
   expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue('01/06/2027');
   expect(screen.getByLabelText('Destination 2 departure')).toHaveValue('05/06/2027');
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
 });
 it('accepts 42 days and rejects 43 days through shared validation', () => {
-  const initial=draft(); initial.endDate='2027-07-13'; initial.destinations=[{...initial.destinations[0],departureDate:initial.endDate}];
-  render(<TripEditor initialDraft={initial} />); expect(screen.getByText('42 weather days across 1 destination.')).toBeInTheDocument();
-  change('Trip departure date','2027-07-14'); change('Destination 1 departure','2027-07-14');
+  const initial = draft();
+  initial.endDate = '2027-07-13';
+  initial.destinations = [{ ...initial.destinations[0], departureDate: initial.endDate }];
+  render(<TripEditor initialDraft={initial} />);
+  expect(screen.getByText('42 weather days across 1 destination.')).toBeInTheDocument();
+  change('Trip departure date', '2027-07-14');
+  change('Destination 1 departure', '2027-07-14');
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
 });
 it('discard restores the complete initial snapshot, including cleared location selection', () => {
-  const onCancel=vi.fn(); const onChange=vi.fn(); render(<TripEditor initialDraft={draft()} onCancel={onCancel} onChange={onChange} />);
-  change('Trip title','Edited'); fireEvent.change(screen.getAllByLabelText('Search city')[0],{target:{value:'Barcelona'}});
-  fireEvent.click(screen.getByRole('button',{name:'Remove destination 2'})); fireEvent.click(screen.getByRole('button',{name:'Discard changes'}));
-  expect(screen.getByLabelText('Trip title')).toHaveValue('Summer'); expect(screen.getAllByLabelText('Search city')[0]).toHaveValue('Paris');
+  const onCancel = vi.fn();
+  const onChange = vi.fn();
+  render(<TripEditor initialDraft={draft()} onCancel={onCancel} onChange={onChange} />);
+  change('Trip title', 'Edited');
+  fireEvent.change(screen.getAllByLabelText('Search city')[0], { target: { value: 'Barcelona' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Remove destination 2' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+  expect(screen.getByLabelText('Trip title')).toHaveValue('Summer');
+  expect(screen.getAllByLabelText('Search city')[0]).toHaveValue('Paris');
   expect(onChange.mock.calls.at(-1)[0].trip).toEqual(draft());
-  expect(screen.getByText('4 weather days across 2 destinations.')).toBeInTheDocument(); expect(onCancel).toHaveBeenCalledOnce();
+  expect(screen.getByText('4 weather days across 2 destinations.')).toBeInTheDocument();
+  expect(onCancel).toHaveBeenCalledOnce();
 });
 it('clears an existing location on city replacement while retaining arrival/departure', () => {
-  const onChange=vi.fn(); render(<TripEditor initialDraft={draft()} onChange={onChange} />);
-  fireEvent.change(screen.getAllByLabelText('Search city')[0],{target:{value:'Barcelona'}});
+  const onChange = vi.fn();
+  render(<TripEditor initialDraft={draft()} onChange={onChange} />);
+  fireEvent.change(screen.getAllByLabelText('Search city')[0], { target: { value: 'Barcelona' } });
   expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue('01/06/2027');
-  expect(onChange.mock.calls.at(-1)[0].trip).toBeNull(); expect(screen.getByRole('button',{name:'Review validated draft'})).toBeDisabled();
+  expect(onChange.mock.calls.at(-1)[0].trip).toBeNull();
+  expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
 });
 
 it('creates a complete new draft through the actual selector and resolver', async () => {
   const { fetchMock, apiResponse } = await import('./fixtures/api');
-  const onSubmit=vi.fn(); render(<TripEditor onSubmit={onSubmit} />);
-  change('Trip title','Paris weekend'); change('Trip arrival date','2027-06-01'); change('Trip departure date','2027-06-03');
-  fireEvent.click(screen.getByRole('button',{name:'Add destination'}));
-  fetchMock.mockResolvedValueOnce(apiResponse([{name:'Paris',country:'FR',lat:48.8566,lon:2.3522}]));
-  change('Search city','Paris'); fireEvent.click(screen.getByRole('button',{name:'Search'}));
-  fireEvent.click(await screen.findByRole('button',{name:'Paris, FR'}));
-  change('Destination 1 arrival','2027-06-01'); change('Destination 1 departure','2027-06-03');
+  const onSubmit = vi.fn();
+  render(<TripEditor onSubmit={onSubmit} />);
+  change('Trip title', 'Paris weekend');
+  change('Trip arrival date', '2027-06-01');
+  change('Trip departure date', '2027-06-03');
+  fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+  fetchMock.mockResolvedValueOnce(
+    apiResponse([{ name: 'Paris', country: 'FR', lat: 48.8566, lon: 2.3522 }]),
+  );
+  change('Search city', 'Paris');
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Paris, FR' }));
+  change('Destination 1 arrival', '2027-06-01');
+  change('Destination 1 departure', '2027-06-03');
   expect(screen.getByText('2 weather days across 1 destination.')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button',{name:'Review validated draft'}));
-  expect(onSubmit).toHaveBeenCalledWith({title:'Paris weekend',startDate:'2027-06-01',endDate:'2027-06-03',destinations:[{...place,position:0,arrivalDate:'2027-06-01',departureDate:'2027-06-03'}]});
+  fireEvent.click(screen.getByRole('button', { name: 'Review validated draft' }));
+  expect(onSubmit).toHaveBeenCalledWith({
+    title: 'Paris weekend',
+    startDate: '2027-06-01',
+    endDate: '2027-06-03',
+    destinations: [
+      { ...place, position: 0, arrivalDate: '2027-06-01', departureDate: '2027-06-03' },
+    ],
+  });
 });
 
 it('preserves public weather lookup while the local editor preview is open', async () => {
-  const {default:Preview}=await import('../src/client/components/trip/TripEditorPreview.jsx');
-  const {default:App}=await import('../src/client/App.jsx');
-  const {WeatherProvider}=await import('../src/client/context/WeatherContextProvider.jsx');
-  const {fetchMock,apiResponse}=await import('./fixtures/api'); const {berlin,daySummary}=await import('./fixtures/weather');
+  const { default: Preview } = await import('../src/client/components/trip/TripEditorPreview.jsx');
+  const { default: App } = await import('../src/client/App.jsx');
+  const { WeatherProvider } = await import('../src/client/context/WeatherContextProvider.jsx');
+  const { fetchMock, apiResponse } = await import('./fixtures/api');
+  const { berlin, daySummary } = await import('./fixtures/weather');
   const { AuthContext } = await import('../src/client/auth/context.js');
-  render(<AuthContext.Provider value={{ isAuthenticated: false }}><Preview /><WeatherProvider><App /></WeatherProvider></AuthContext.Provider>);
-  fireEvent.click(screen.getByRole('button',{name:'Open local trip editor'}));
-  expect(screen.getByRole('region',{name:'Trip editor'})).toBeInTheDocument();
-  fetchMock.mockResolvedValueOnce(apiResponse([berlin])).mockResolvedValueOnce(apiResponse(daySummary));
-  change('City:','Berlin'); change('Date of travel:',daySummary.date); fireEvent.click(screen.getByRole('button',{name:'Search Weather'}));
+  render(
+    <AuthContext.Provider value={{ isAuthenticated: false }}>
+      <Preview />
+      <WeatherProvider>
+        <App />
+      </WeatherProvider>
+    </AuthContext.Provider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Open local trip editor' }));
+  expect(screen.getByRole('region', { name: 'Trip editor' })).toBeInTheDocument();
+  fetchMock
+    .mockResolvedValueOnce(apiResponse([berlin]))
+    .mockResolvedValueOnce(apiResponse(daySummary));
+  change('City:', 'Berlin');
+  change('Date of travel:', daySummary.date);
+  fireEvent.click(screen.getByRole('button', { name: 'Search Weather' }));
   await screen.findByText('Weather loaded.');
 });
 
@@ -120,14 +207,21 @@ it('keeps untouched errors quiet, reveals touched errors, and clears them after 
   expect(title).toHaveAttribute('aria-invalid', 'false');
   expect(screen.queryByText(/Use a title between/)).not.toBeInTheDocument();
   expect(screen.queryByRole('list', { name: 'Validation issues' })).not.toBeInTheDocument();
-  fireEvent.blur(title); expect(title).toHaveAttribute('aria-invalid', 'true');
-  expect(screen.getByText(/Use a title between/)).toHaveAttribute('id', title.getAttribute('aria-describedby'));
-  change('Trip title', 'My trip'); expect(title).toHaveAttribute('aria-invalid', 'false');
+  fireEvent.blur(title);
+  expect(title).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByText(/Use a title between/)).toHaveAttribute(
+    'id',
+    title.getAttribute('aria-describedby'),
+  );
+  change('Trip title', 'My trip');
+  expect(title).toHaveAttribute('aria-invalid', 'false');
   expect(screen.queryByText(/Use a title between/)).not.toBeInTheDocument();
 });
 it('explains invalid saving through Check trip and focuses the first actionable field', () => {
-  const onSubmit = vi.fn(); render(<TripEditor onSubmit={onSubmit} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Add destination' })); fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+  const onSubmit = vi.fn();
+  render(<TripEditor onSubmit={onSubmit} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
   fireEvent.click(screen.getByText('Check trip'));
   expect(screen.getByLabelText('Trip title')).toHaveFocus();
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
@@ -141,8 +235,10 @@ it('explains invalid saving through Check trip and focuses the first actionable 
   expect(screen.queryByText(/IANA|latitude|longitude/)).not.toBeInTheDocument();
 });
 it('defers the temporary final departure mismatch until review and keeps full validation active', () => {
-  const initial = draft(); initial.destinations = [initial.destinations[0]];
-  const onSubmit = vi.fn(); render(<TripEditor initialDraft={initial} onSubmit={onSubmit} />);
+  const initial = draft();
+  initial.destinations = [initial.destinations[0]];
+  const onSubmit = vi.fn();
+  render(<TripEditor initialDraft={initial} onSubmit={onSubmit} />);
   fireEvent.blur(screen.getByLabelText('Destination 1 departure'));
   expect(screen.queryByText('Final departure must equal trip end.')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
@@ -150,15 +246,20 @@ it('defers the temporary final departure mismatch until review and keeps full va
   expect(screen.getByText('Final departure must equal trip end.')).toBeInTheDocument();
   change('Destination 1 departure', initial.endDate);
   expect(screen.queryByText('Final departure must equal trip end.')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeEnabled(); expect(onSubmit).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeEnabled();
+  expect(onSubmit).not.toHaveBeenCalled();
 });
 it('shows final-boundary feedback after both relevant boundaries have been touched', () => {
-  const initial = draft(); initial.destinations = [initial.destinations[0]]; render(<TripEditor initialDraft={initial} />);
-  fireEvent.blur(screen.getByLabelText('Trip departure date')); fireEvent.blur(screen.getByLabelText('Destination 1 departure'));
+  const initial = draft();
+  initial.destinations = [initial.destinations[0]];
+  render(<TripEditor initialDraft={initial} />);
+  fireEvent.blur(screen.getByLabelText('Trip departure date'));
+  fireEvent.blur(screen.getByLabelText('Destination 1 departure'));
   expect(screen.getByText('Final departure must equal trip end.')).toBeInTheDocument();
 });
 it('prefills only a new arrival from the valid prior departure and keeps it editable', () => {
-  render(<TripEditor initialDraft={draft()} />); fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+  render(<TripEditor initialDraft={draft()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
   expect(screen.getByLabelText('Destination 3 arrival')).toHaveValue('05/06/2027');
   expect(screen.getByLabelText('Destination 3 departure')).toHaveValue('');
   change('Destination 2 departure', '2027-06-06');
@@ -168,39 +269,61 @@ it('prefills only a new arrival from the valid prior departure and keeps it edit
   expect(screen.getByLabelText('Destination 1 departure')).toHaveValue('03/06/2027');
   expect(screen.getByLabelText('Trip departure date')).toHaveValue('05/06/2027');
 });
-it.each(['', '2027-02-30'])('does not prefill from a missing or invalid prior departure: %s', departureDate => {
-  const initial = draft(); initial.destinations[1].departureDate = departureDate;
-  render(<TripEditor initialDraft={initial} />); fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
-  expect(screen.getByLabelText('Destination 3 arrival')).toHaveValue(''); expect(screen.getByLabelText('Destination 3 departure')).toHaveValue('');
-});
-it.each(['2027-06-01', '', '2027-02-30'])('prefills the first arrival only from a valid trip start: %s', startDate => {
-  render(<TripEditor />); change('Trip arrival date', startDate); fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
-  expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue(startDate === '2027-06-01' ? '01/06/2027' : '');
-  change('Trip arrival date', '2027-06-02');
-  expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue(startDate === '2027-06-01' ? '01/06/2027' : '');
-});
+it.each(['', '2027-02-30'])(
+  'does not prefill from a missing or invalid prior departure: %s',
+  (departureDate) => {
+    const initial = draft();
+    initial.destinations[1].departureDate = departureDate;
+    render(<TripEditor initialDraft={initial} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+    expect(screen.getByLabelText('Destination 3 arrival')).toHaveValue('');
+    expect(screen.getByLabelText('Destination 3 departure')).toHaveValue('');
+  },
+);
+it.each(['2027-06-01', '', '2027-02-30'])(
+  'prefills the first arrival only from a valid trip start: %s',
+  (startDate) => {
+    render(<TripEditor />);
+    change('Trip arrival date', startDate);
+    fireEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+    expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue(
+      startDate === '2027-06-01' ? '01/06/2027' : '',
+    );
+    change('Trip arrival date', '2027-06-02');
+    expect(screen.getByLabelText('Destination 1 arrival')).toHaveValue(
+      startDate === '2027-06-01' ? '01/06/2027' : '',
+    );
+  },
+);
 it('Discard clears touched/review feedback as well as restoring the original dates', () => {
-  render(<TripEditor initialDraft={draft()} />); change('Trip title', ''); fireEvent.blur(screen.getByLabelText('Trip title'));
-  fireEvent.click(screen.getByText('Check trip')); fireEvent.click(screen.getByText('Discard changes'));
+  render(<TripEditor initialDraft={draft()} />);
+  change('Trip title', '');
+  fireEvent.blur(screen.getByLabelText('Trip title'));
+  fireEvent.click(screen.getByText('Check trip'));
+  fireEvent.click(screen.getByText('Discard changes'));
   expect(screen.queryByText(/Check the highlighted fields/)).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Trip title')).toHaveValue('Summer'); expect(screen.getByLabelText('Trip title')).toHaveAttribute('aria-invalid', 'false');
+  expect(screen.getByLabelText('Trip title')).toHaveValue('Summer');
+  expect(screen.getByLabelText('Trip title')).toHaveAttribute('aria-invalid', 'false');
 });
-
 
 it('renders create and edit headings and day-first date fields', () => {
   const { unmount } = render(<TripEditor />);
   expect(screen.getByRole('heading', { name: 'Create Trip' })).toBeVisible();
   expect(screen.getByLabelText('Trip arrival date')).toHaveAttribute('placeholder', 'DD/MM/YYYY');
   expect(screen.getByLabelText('Trip arrival date')).toHaveAttribute('aria-invalid', 'false');
-  unmount(); render(<TripEditor initialDraft={draft()} />);
+  unmount();
+  render(<TripEditor initialDraft={draft()} />);
   expect(screen.getByRole('heading', { name: 'Edit Trip' })).toBeVisible();
   expect(screen.getByLabelText('Trip arrival date')).toHaveValue('01/06/2027');
   expect(screen.getByLabelText('Trip departure date')).toHaveValue('05/06/2027');
   expect(screen.getByLabelText('Destination 2 arrival')).toHaveValue('03/06/2027');
 });
 it('uses keyboard calendar selection without shifting adjacent dates and focuses the invalid boundary', async () => {
-  const user = userEvent.setup(); render(<TripEditor initialDraft={draft()} />);
-  await user.click(screen.getByRole('button', { name: 'Open calendar for destination 1 departure' }));
+  const user = userEvent.setup();
+  render(<TripEditor initialDraft={draft()} />);
+  await user.click(
+    screen.getByRole('button', { name: 'Open calendar for destination 1 departure' }),
+  );
   expect(screen.getByRole('button', { name: /June 3rd, 2027, selected/ })).toHaveFocus();
   await user.keyboard('{ArrowRight}{Enter}');
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -210,22 +333,31 @@ it('uses keyboard calendar selection without shifting adjacent dates and focuses
   await user.click(screen.getByRole('button', { name: 'Check trip' }));
   const arrival = screen.getByLabelText('Destination 2 arrival');
   expect(arrival).toHaveFocus();
-  expect(arrival.getAttribute('aria-describedby').split(' ')).toContain(screen.getByText('Arrival must equal the previous departure; no gaps or overlaps.').id);
+  expect(arrival.getAttribute('aria-describedby').split(' ')).toContain(
+    screen.getByText('Arrival must equal the previous departure; no gaps or overlaps.').id,
+  );
 });
 it('accepts localized and ISO input while submitting only canonical date strings', () => {
-  const onSubmit = vi.fn(); render(<TripEditor initialDraft={draft()} onSubmit={onSubmit} />);
+  const onSubmit = vi.fn();
+  render(<TripEditor initialDraft={draft()} onSubmit={onSubmit} />);
   fireEvent.change(screen.getByLabelText('Trip arrival date'), { target: { value: '2027-06-01' } });
-  fireEvent.change(screen.getByLabelText('Trip departure date'), { target: { value: '06/05/2027' } });
+  fireEvent.change(screen.getByLabelText('Trip departure date'), {
+    target: { value: '06/05/2027' },
+  });
   // Ambiguous input is day-first, making the trip invalid until corrected.
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
-  fireEvent.change(screen.getByLabelText('Trip departure date'), { target: { value: '05-06-2027' } });
+  fireEvent.change(screen.getByLabelText('Trip departure date'), {
+    target: { value: '05-06-2027' },
+  });
   fireEvent.click(screen.getByRole('button', { name: 'Review validated draft' }));
   expect(onSubmit).toHaveBeenCalledExactlyOnceWith(draft());
 });
 it('retains partial/invalid date drafts and restores all localized dates on discard', async () => {
-  const user = userEvent.setup(); render(<TripEditor initialDraft={draft()} />);
+  const user = userEvent.setup();
+  render(<TripEditor initialDraft={draft()} />);
   const arrival = screen.getByLabelText('Trip arrival date');
-  await user.clear(arrival); await user.type(arrival, '31/02/2027');
+  await user.clear(arrival);
+  await user.type(arrival, '31/02/2027');
   expect(arrival).toHaveValue('31/02/2027');
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'Discard changes' }));
@@ -236,23 +368,36 @@ it('retains partial/invalid date drafts and restores all localized dates on disc
 });
 it('carries the saving fieldset state to an already-open calendar portal', async () => {
   const user = userEvent.setup();
-  const view = disabled => <fieldset disabled={disabled}><TripEditor initialDraft={draft()} disabled={disabled} submitLabel="Save Trip" /></fieldset>;
+  const view = (disabled) => (
+    <fieldset disabled={disabled}>
+      <TripEditor initialDraft={draft()} disabled={disabled} submitLabel="Save Trip" />
+    </fieldset>
+  );
   const { rerender } = render(view(false));
   await user.click(screen.getByRole('button', { name: 'Open calendar for trip arrival date' }));
   expect(screen.getByRole('dialog')).toBeVisible();
   rerender(view(true));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Save Trip' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Open calendar for trip arrival date' })).toBeDisabled();
+  expect(
+    screen.getByRole('button', { name: 'Open calendar for trip arrival date' }),
+  ).toBeDisabled();
 });
 
 it('keeps a typed unconfirmed city informative on blur but invalid for saving until selected', async () => {
-  const user = userEvent.setup(); const onSubmit = vi.fn();
+  const user = userEvent.setup();
+  const onSubmit = vi.fn();
   render(<TripEditor initialDraft={draft()} onSubmit={onSubmit} />);
   const city = screen.getAllByLabelText('Search city')[0];
-  await user.clear(city); await user.type(city, 'Berlin'); await user.tab();
+  await user.clear(city);
+  await user.type(city, 'Berlin');
+  await user.tab();
   expect(city).toHaveAttribute('aria-invalid', 'false');
-  expect(within(screen.getByRole('region', { name: 'Destination 1' })).getByText('Press Search or Enter, then choose a city from the results.')).toBeVisible();
+  expect(
+    within(screen.getByRole('region', { name: 'Destination 1' })).getByText(
+      'Press Search or Enter, then choose a city from the results.',
+    ),
+  ).toBeVisible();
   expect(screen.queryByText('Search for a city and choose a result.')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Review validated draft' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'Check trip' }));
@@ -262,7 +407,9 @@ it('keeps a typed unconfirmed city informative on blur but invalid for saving un
   expect(onSubmit).not.toHaveBeenCalled();
 });
 it('clearing a selected city preserves all dates and the destination card', async () => {
-  const user = userEvent.setup(); const onChange = vi.fn(); render(<TripEditor initialDraft={draft()} onChange={onChange} />);
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(<TripEditor initialDraft={draft()} onChange={onChange} />);
   const card = screen.getByRole('region', { name: 'Destination 1' });
   await user.click(within(card).getByRole('button', { name: 'Clear selected city' }));
   expect(screen.getAllByRole('region', { name: /^Destination \d/ })).toHaveLength(2);
@@ -279,7 +426,7 @@ it('clearing a selected city preserves all dates and the destination card', asyn
 });
 it('distinguishes populated and prefilled date fields from empty fields without hiding errors', () => {
   render(<TripEditor initialDraft={draft()} />);
-  const state = name => screen.getByLabelText(name).closest('.tripcast-date-field');
+  const state = (name) => screen.getByLabelText(name).closest('.tripcast-date-field');
   expect(state('Trip arrival date')).toHaveAttribute('data-state', 'populated');
   expect(state('Trip departure date')).toHaveAttribute('data-state', 'populated');
   expect(state('Destination 1 departure')).toHaveAttribute('data-state', 'populated');
@@ -300,6 +447,8 @@ it('shows the prominent Add Destination action and an explicit eight-destination
   expect(add).toHaveClass('editor-button-primary');
   for (let i = 0; i < 8; i++) fireEvent.click(add);
   expect(add).toBeDisabled();
-  const limit = screen.getByText('Maximum eight destinations reached. Remove a destination to add another.');
+  const limit = screen.getByText(
+    'Maximum eight destinations reached. Remove a destination to add another.',
+  );
   expect(add).toHaveAttribute('aria-describedby', limit.id);
 });

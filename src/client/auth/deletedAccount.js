@@ -7,19 +7,38 @@ export function clearDeletedAccountStorage(storageKey) {
 }
 
 /** Deletion is already confirmed. SDK/network failures must not turn it into failure. */
-export async function finishAccountDeletion(client, { clearState = () => {}, navigate = () => window.location.replace('/?account=deleted'), clearStorage = () => {} } = {}) {
+export async function finishAccountDeletion(
+  client,
+  {
+    clearState = () => {},
+    navigate = () => window.location.replace('/?account=deleted'),
+    clearStorage = () => {},
+  } = {},
+) {
   clearState();
-  try { await client.auth.stopAutoRefresh?.(); } catch { /* Local cleanup continues. */ }
+  try {
+    await client.auth.stopAutoRefresh?.();
+  } catch {
+    /* Local cleanup continues. */
+  }
   let timer;
   try {
     clearStorage();
     await Promise.race([
-      Promise.resolve().then(() => client.auth.signOut({ scope: 'local' })).catch(() => {}),
-      new Promise(resolve => { timer = setTimeout(resolve, 1000); }),
+      Promise.resolve()
+        .then(() => client.auth.signOut({ scope: 'local' }))
+        .catch(() => {}),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, 1000);
+      }),
     ]);
   } finally {
     clearTimeout(timer);
     // Remove persistence even when getSession/signOut refresh or logout requests fail.
-    try { clearStorage(); } finally { navigate(); }
+    try {
+      clearStorage();
+    } finally {
+      navigate();
+    }
   }
 }

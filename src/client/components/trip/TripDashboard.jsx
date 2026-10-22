@@ -20,14 +20,21 @@ export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
   const heading = useRef(null);
   const publicRegion = useRef(null);
   const active = useRef(false);
-  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   useEffect(() => {
-    if (view === 'public') publicRegion.current?.focus(); else heading.current?.focus();
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (view === 'public') publicRegion.current?.focus();
+    else heading.current?.focus();
   }, [view]);
 
   function navigate(next) {
     if (next === view || busy === 'saving' || busy === 'deleting') return;
-    if (view === 'editor' && !window.confirm('Leave the editor without saving your changes?')) return;
+    if (view === 'editor' && !window.confirm('Leave the editor without saving your changes?'))
+      return;
     setView(next);
   }
   async function submit(draft) {
@@ -35,46 +42,134 @@ export default function TripDashboard({ ownerId, publicWeather, myTripRef }) {
     if (active.current && result?.ok) setView('dashboard');
   }
   function reload() {
-    if (!loaded || window.confirm('Reload the saved trip? Your unsaved changes will be discarded.')) void load();
+    if (!loaded || window.confirm('Reload the saved trip? Your unsaved changes will be discarded.'))
+      void load();
   }
   const showEmpty = view === 'dashboard' && loaded && !saved && !busy && !error;
   const mutationPending = busy === 'saving' || busy === 'deleting';
-  return <>
-    <Header myTripRef={myTripRef} view={view} onNavigate={navigate} disabled={mutationPending} />
-    <div hidden={view !== 'public'} ref={publicRegion} tabIndex={-1} aria-label="Single-city weather">{publicWeather}</div>
-    <main hidden={view === 'public'} className={view === 'dashboard' ? `trip-dashboard${showEmpty ? ' trip-dashboard-empty' : ''}` : 'trip-editor-page'}>
-      {showEmpty && <p className="trip-empty-eyebrow">Personal itinerary · Your workspace</p>}
-      <h2 ref={heading} tabIndex={-1} className={view === 'editor' ? 'editor-page-title' : 'text-2xl font-bold'}>{view === 'editor' ? saved ? 'Edit Trip' : 'Create Trip' : 'My Trip'}</h2>
-      {showEmpty && <p className="trip-empty-intro">Your saved multi-destination itinerary and weather throughout your journey.</p>}
-      <p className={showEmpty ? 'sr-only' : error ? 'trip-notice trip-notice-error' : undefined} role={error ? 'alert' : 'status'}>{message}</p>
-      {!busy && (error || !loaded) && <button type="button" className={buttonClass} onClick={reload}>{loaded ? 'Reload saved trip' : 'Retry loading trip'}</button>}
-      {loaded && view === 'editor' && <>
-        <fieldset disabled={Boolean(busy)} className="min-w-0">
-          <TripEditor showHeading={false} disabled={Boolean(busy)} key={version} initialDraft={saved?.draft} onSubmit={submit} onCancel={() => setView('dashboard')}
-            submitLabel="Save Trip" submitMessage="" submitDisabled={blocked} />
-        </fieldset>
-        <button type="button" className={buttonClass} disabled={Boolean(busy)} onClick={() => navigate('dashboard')}>Back to My Trip</button>
-      </>}
-      {loaded && view === 'dashboard' && (!saved ? showEmpty && <TripEmptyState disabled={blocked} onCreate={() => setView('editor')} onWeatherSearch={() => navigate('public')} /> : <>
-        <section aria-label="Saved trip overview" className="trip-overview">
-          <p className="trip-eyebrow">Travel itinerary weather</p>
-          <h3 className="trip-title">{saved.draft.title}</h3>
-          <p>Arrival: {formatCalendarDate(saved.draft.startDate)} · Departure: {formatCalendarDate(saved.draft.endDate)}</p>
-          <p>{coveredDayCount(saved.draft.startDate, saved.draft.endDate)} covered days · {saved.draft.destinations.length} destinations. Departure is excluded from weather days.</p>
-          <div className="trip-actions">
-            <button type="button" className="trip-button" disabled={Boolean(busy)} onClick={() => setView('editor')}>Edit Trip</button>
-            <DeleteTripDialog title={saved.draft.title} disabled={Boolean(busy) || blocked} onConfirm={remove}
-              errorMessage={error ? message : null} onDeletedFocus={() => heading.current?.focus()} />
-            <TripWeatherActions weather={weather} disabled={Boolean(busy) || blocked} />
-          </div>
-        </section>
-        <div className="trip-legend" aria-label="Forecast categories">
-          <span className="trip-category trip-category-standard">Standard forecast</span>
-          <span className="trip-category trip-category-long">Long-range estimate</span>
-          <p>TripCast’s provisional eight-day policy; long-range estimates are less certain. These labels are not provider confidence ratings.</p>
-        </div>
-        <TripWeatherResults saved={saved} weather={weather} />
-      </>)}
-    </main>
-  </>;
+  return (
+    <>
+      <Header myTripRef={myTripRef} view={view} onNavigate={navigate} disabled={mutationPending} />
+      <div
+        hidden={view !== 'public'}
+        ref={publicRegion}
+        tabIndex={-1}
+        aria-label="Single-city weather"
+      >
+        {publicWeather}
+      </div>
+      <main
+        hidden={view === 'public'}
+        className={
+          view === 'dashboard'
+            ? `trip-dashboard${showEmpty ? ' trip-dashboard-empty' : ''}`
+            : 'trip-editor-page'
+        }
+      >
+        {showEmpty && <p className="trip-empty-eyebrow">Personal itinerary · Your workspace</p>}
+        <h2
+          ref={heading}
+          tabIndex={-1}
+          className={view === 'editor' ? 'editor-page-title' : 'text-2xl font-bold'}
+        >
+          {view === 'editor' ? (saved ? 'Edit Trip' : 'Create Trip') : 'My Trip'}
+        </h2>
+        {showEmpty && (
+          <p className="trip-empty-intro">
+            Your saved multi-destination itinerary and weather throughout your journey.
+          </p>
+        )}
+        <p
+          className={showEmpty ? 'sr-only' : error ? 'trip-notice trip-notice-error' : undefined}
+          role={error ? 'alert' : 'status'}
+        >
+          {message}
+        </p>
+        {!busy && (error || !loaded) && (
+          <button type="button" className={buttonClass} onClick={reload}>
+            {loaded ? 'Reload saved trip' : 'Retry loading trip'}
+          </button>
+        )}
+        {loaded && view === 'editor' && (
+          <>
+            <fieldset disabled={Boolean(busy)} className="min-w-0">
+              <TripEditor
+                showHeading={false}
+                disabled={Boolean(busy)}
+                key={version}
+                initialDraft={saved?.draft}
+                onSubmit={submit}
+                onCancel={() => setView('dashboard')}
+                submitLabel="Save Trip"
+                submitMessage=""
+                submitDisabled={blocked}
+              />
+            </fieldset>
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={Boolean(busy)}
+              onClick={() => navigate('dashboard')}
+            >
+              Back to My Trip
+            </button>
+          </>
+        )}
+        {loaded &&
+          view === 'dashboard' &&
+          (!saved ? (
+            showEmpty && (
+              <TripEmptyState
+                disabled={blocked}
+                onCreate={() => setView('editor')}
+                onWeatherSearch={() => navigate('public')}
+              />
+            )
+          ) : (
+            <>
+              <section aria-label="Saved trip overview" className="trip-overview">
+                <p className="trip-eyebrow">Travel itinerary weather</p>
+                <h3 className="trip-title">{saved.draft.title}</h3>
+                <p>
+                  Arrival: {formatCalendarDate(saved.draft.startDate)} · Departure:{' '}
+                  {formatCalendarDate(saved.draft.endDate)}
+                </p>
+                <p>
+                  {coveredDayCount(saved.draft.startDate, saved.draft.endDate)} covered days ·{' '}
+                  {saved.draft.destinations.length} destinations. Departure is excluded from weather
+                  days.
+                </p>
+                <div className="trip-actions">
+                  <button
+                    type="button"
+                    className="trip-button"
+                    disabled={Boolean(busy)}
+                    onClick={() => setView('editor')}
+                  >
+                    Edit Trip
+                  </button>
+                  <DeleteTripDialog
+                    title={saved.draft.title}
+                    disabled={Boolean(busy) || blocked}
+                    onConfirm={remove}
+                    errorMessage={error ? message : null}
+                    onDeletedFocus={() => heading.current?.focus()}
+                  />
+                  <TripWeatherActions weather={weather} disabled={Boolean(busy) || blocked} />
+                </div>
+              </section>
+              <div className="trip-legend" aria-label="Forecast categories">
+                <span className="trip-category trip-category-standard">Standard forecast</span>
+                <span className="trip-category trip-category-long">Long-range estimate</span>
+                <p>
+                  TripCast’s provisional eight-day policy; long-range estimates are less certain.
+                  These labels are not provider confidence ratings.
+                </p>
+              </div>
+              <TripWeatherResults saved={saved} weather={weather} />
+            </>
+          ))}
+      </main>
+    </>
+  );
 }

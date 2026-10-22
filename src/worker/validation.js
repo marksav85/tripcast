@@ -23,15 +23,27 @@ export async function readLimitedJSON(stream, limit, error, options = {}) {
       const { value, done } = await Promise.race([reader.read(), timeout, stopped]);
       if (done) break;
       length += value.byteLength;
-      if (length > limit) { void reader.cancel().catch(() => {}); throw error; }
+      if (length > limit) {
+        void reader.cancel().catch(() => {});
+        throw error;
+      }
       chunks.push(value);
     }
     const bytes = new Uint8Array(length);
     let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } catch (caught) { throw caught instanceof ApiError ? caught : options.parseError ?? error; }
-  finally { options.signal?.removeEventListener('abort', onAbort); clearTimeout(timer); void reader.cancel().catch(() => {}); reader.releaseLock(); }
+  } catch (caught) {
+    throw caught instanceof ApiError ? caught : (options.parseError ?? error);
+  } finally {
+    options.signal?.removeEventListener('abort', onAbort);
+    clearTimeout(timer);
+    void reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 
 function queryKeys(url, allowed) {
@@ -40,7 +52,8 @@ function queryKeys(url, allowed) {
   }
 }
 function coordinate(value) {
-  if (typeof value !== 'string' || !/^-?\d+(\.\d+)?$/.test(value) || value.length > 24) throw invalid();
+  if (typeof value !== 'string' || !/^-?\d+(\.\d+)?$/.test(value) || value.length > 24)
+    throw invalid();
   return Number(value);
 }
 
@@ -61,24 +74,35 @@ export async function validateInput(request, route, url) {
   }
   queryKeys(url, []);
   const input = await readJSONBody(request);
-  if (!input || typeof input !== 'object' || Array.isArray(input)
-    || !['lat', 'lon', 'date'].every((key) => Object.hasOwn(input, key))
-    || Object.keys(input).some((key) => !['lat', 'lon', 'date'].includes(key))
-    || !validCoordinates(input.lat, input.lon) || !isCalendarDate(input.date)) throw invalid();
+  if (
+    !input ||
+    typeof input !== 'object' ||
+    Array.isArray(input) ||
+    !['lat', 'lon', 'date'].every((key) => Object.hasOwn(input, key)) ||
+    Object.keys(input).some((key) => !['lat', 'lon', 'date'].includes(key)) ||
+    !validCoordinates(input.lat, input.lon) ||
+    !isCalendarDate(input.date)
+  )
+    throw invalid();
   const horizonError = weatherDateError(input.date);
   if (horizonError) throw horizonError;
   return input;
 }
 
 async function readJSONBody(request, parseError = invalid()) {
-  if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+  if (
+    request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json'
+  ) {
     throw new ApiError('UNSUPPORTED_MEDIA_TYPE', 415, 'Use application/json.');
   }
   const large = new ApiError('BODY_TOO_LARGE', 413, 'Request body is too large or invalid.');
   const size = request.headers.get('content-length');
   if (size !== null && (!/^\d+$/.test(size) || Number(size) > 16384)) throw large;
   // Bound both body size and slow body consumption; do not trust Content-Length.
-  return await readLimitedJSON(request.body, 16384, large, { parseError, timeoutError: new ApiError('BODY_TIMEOUT', 408, 'Request body timed out.') });
+  return await readLimitedJSON(request.body, 16384, large, {
+    parseError,
+    timeoutError: new ApiError('BODY_TIMEOUT', 408, 'Request body timed out.'),
+  });
 }
 
 export async function validateTripWeatherInput(request, url) {
@@ -86,8 +110,14 @@ export async function validateTripWeatherInput(request, url) {
   if (url.href.length > 2048) throw error;
   queryKeys(url, []);
   const input = await readJSONBody(request, error);
-  if (!input || typeof input !== 'object' || Array.isArray(input)
-    || !Object.hasOwn(input, 'draft') || Object.keys(input).length !== 1) throw error;
+  if (
+    !input ||
+    typeof input !== 'object' ||
+    Array.isArray(input) ||
+    !Object.hasOwn(input, 'draft') ||
+    Object.keys(input).length !== 1
+  )
+    throw error;
   const result = validateTripDraft(input.draft);
   if (!result.valid) throw error;
   return result.trip;
@@ -95,9 +125,15 @@ export async function validateTripWeatherInput(request, url) {
 
 // Provisional application boundary, not a claim about provider entitlement/coverage.
 export function weatherDateError(date, now = Date.now()) {
-  if (date < '1979-01-02') return new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the supported weather range.');
+  if (date < '1979-01-02')
+    return new ApiError(
+      'DATE_UNAVAILABLE',
+      400,
+      'This date is outside the supported weather range.',
+    );
   const max = new Date(now);
   max.setUTCDate(max.getUTCDate() + 540);
   return date > max.toISOString().slice(0, 10)
-    ? new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the provisional weather range.') : null;
+    ? new ApiError('DATE_UNAVAILABLE', 400, 'This date is outside the provisional weather range.')
+    : null;
 }

@@ -6,5 +6,11 @@ export class ApiError extends Error {
     this.retryAfter = retryAfter;
   }
 }
-export const invalid = () => new ApiError('INVALID_INPUT', 400, 'Check the location and date inputs.');
-export const malformed = () => new ApiError('UPSTREAM_INVALID', 502, 'The weather service returned unusable data. Please retry.');
+export const invalid = () =>
+  new ApiError('INVALID_INPUT', 400, 'Check the location and date inputs.');
+export const malformed = () =>
+  new ApiError(
+    'UPSTREAM_INVALID',
+    502,
+    'The weather service returned unusable data. Please retry.',
+  );

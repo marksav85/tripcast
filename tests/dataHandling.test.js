@@ -6,8 +6,22 @@ import { berlin, daySummary } from './fixtures/weather';
 
 const query = { date: daySummary.date, location: { ...berlin } };
 describe('calendar-only dates', () => {
-  it.each(['2000-02-29', '2024-02-29', '2026-12-31', '0001-01-01'])('accepts real date %s', (date) => expect(isCalendarDate(date)).toBe(true));
-  it.each(['2100-02-29', '2026-02-29', '2026-04-31', '2026-00-01', '2026-13-01', '0000-01-01', '2026-1-01', '2026-10-13T00:00:00Z', '', null])('rejects invalid date %s', (date) => expect(isCalendarDate(date)).toBe(false));
+  it.each(['2000-02-29', '2024-02-29', '2026-12-31', '0001-01-01'])(
+    'accepts real date %s',
+    (date) => expect(isCalendarDate(date)).toBe(true),
+  );
+  it.each([
+    '2100-02-29',
+    '2026-02-29',
+    '2026-04-31',
+    '2026-00-01',
+    '2026-13-01',
+    '0000-01-01',
+    '2026-1-01',
+    '2026-10-13T00:00:00Z',
+    '',
+    null,
+  ])('rejects invalid date %s', (date) => expect(isCalendarDate(date)).toBe(false));
   it('formats date-only strings without local-timezone shifting', () => {
     expect(formatCalendarDate('2026-10-13')).toBe('13 October 2026');
     expect(formatCalendarDate('2026-02-30')).toBe('Date unavailable');
@@ -35,7 +49,10 @@ describe('location validation', () => {
     expect(validateLookup(city, daySummary.date).errors.city).toBeTruthy();
   });
   it('preserves Unicode/punctuation and validates the date independently', () => {
-    expect(validateLookup('  São Paulo, BR  ', daySummary.date)).toEqual({ query: 'São Paulo, BR', errors: {} });
+    expect(validateLookup('  São Paulo, BR  ', daySummary.date)).toEqual({
+      query: 'São Paulo, BR',
+      errors: {},
+    });
     expect(validateLookup('Berlin', '2100-02-29').errors.date).toBeTruthy();
   });
   it('allows coordinate boundaries and rejects nonfinite/coerced values', () => {
@@ -45,7 +62,9 @@ describe('location validation', () => {
     expect(validCoordinates(0, -181)).toBe(false);
   });
   it('deduplicates valid candidates and discards invalid members', () => {
-    expect(normalizeCandidates([null, berlin, berlin, { ...berlin, lat: Infinity }])).toHaveLength(1);
+    expect(normalizeCandidates([null, berlin, berlin, { ...berlin, lat: Infinity }])).toHaveLength(
+      1,
+    );
     expect(normalizeCandidates([])).toEqual([]);
   });
 });
@@ -54,33 +73,67 @@ describe('existing day-summary adapter / reusable model', () => {
   it('preserves zero values, Celsius units and explicit missing conditions', () => {
     const { model, available } = normalizeDaySummary(daySummary, query);
     expect(available).toBe(true);
-    expect(model).toMatchObject({ lowC: 0, highC: 15, precipitationMm: 0, cloudPercent: 20, condition: null, timeZone: null });
+    expect(model).toMatchObject({
+      lowC: 0,
+      highC: 15,
+      precipitationMm: 0,
+      cloudPercent: 20,
+      condition: null,
+      timeZone: null,
+    });
     expect(model).not.toHaveProperty('averageTemperature');
     expect(model).not.toHaveProperty('rainMm');
   });
   it('can explicitly convert Kelvin once, never implicitly', () => {
     const data = { ...daySummary, temperature: { min: 273.15, max: 283.15 } };
-    expect(normalizeDaySummary(data, query, 'standard').model).toMatchObject({ lowC: 0, highC: 10 });
+    expect(normalizeDaySummary(data, query, 'standard').model).toMatchObject({
+      lowC: 0,
+      highC: 10,
+    });
     expect(() => normalizeDaySummary(data, query, 'imperial')).toThrow();
   });
   it('keeps missing and invalid measurements null, not zero', () => {
-    const { model, available } = normalizeDaySummary({ date: daySummary.date,
-      temperature: { min: null, max: '15' }, cloud_cover: { afternoon: 101 }, precipitation: { total: -1 },
-    }, query);
+    const { model, available } = normalizeDaySummary(
+      {
+        date: daySummary.date,
+        temperature: { min: null, max: '15' },
+        cloud_cover: { afternoon: 101 },
+        precipitation: { total: -1 },
+      },
+      query,
+    );
     expect(available).toBe(false);
-    expect(model).toMatchObject({ lowC: null, highC: null, cloudPercent: null, precipitationMm: null });
+    expect(model).toMatchObject({
+      lowC: null,
+      highC: null,
+      cloudPercent: null,
+      precipitationMm: null,
+    });
   });
   it('handles incomplete nested objects and nonfinite values safely', () => {
-    expect(normalizeDaySummary({ date: daySummary.date, temperature: { min: -5 }, precipitation: null }, query).model)
-      .toMatchObject({ lowC: -5, highC: null, precipitationMm: null });
-    expect(normalizeDaySummary({ date: daySummary.date, temperature: { min: NaN, max: Infinity } }, query).available).toBe(false);
+    expect(
+      normalizeDaySummary(
+        { date: daySummary.date, temperature: { min: -5 }, precipitation: null },
+        query,
+      ).model,
+    ).toMatchObject({ lowC: -5, highC: null, precipitationMm: null });
+    expect(
+      normalizeDaySummary(
+        { date: daySummary.date, temperature: { min: NaN, max: Infinity } },
+        query,
+      ).available,
+    ).toBe(false);
   });
   it('marks all-missing days unavailable and rejects swapped high/low', () => {
     expect(normalizeDaySummary({ date: daySummary.date }, query).available).toBe(false);
-    expect(normalizeDaySummary({ date: daySummary.date, temperature: { min: 20, max: 5 } }, query).model)
-      .toMatchObject({ lowC: null, highC: null });
+    expect(
+      normalizeDaySummary({ date: daySummary.date, temperature: { min: 20, max: 5 } }, query).model,
+    ).toMatchObject({ lowC: null, highC: null });
   });
-  it.each([null, [], {}, { date: '2026-02-30' }, { date: '2026-10-14' }])('rejects unusable weather envelopes %j', (data) => {
-    expect(() => normalizeDaySummary(data, query)).toThrow(/invalid date or response/);
-  });
+  it.each([null, [], {}, { date: '2026-02-30' }, { date: '2026-10-14' }])(
+    'rejects unusable weather envelopes %j',
+    (data) => {
+      expect(() => normalizeDaySummary(data, query)).toThrow(/invalid date or response/);
+    },
+  );
 });
