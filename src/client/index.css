@@ -139,7 +139,7 @@ body {
 .shell-account-message:empty {
   display: none;
 }
-.shell-header :is(button, input):focus-visible {
+.shell-header :is(a, button, input):focus-visible {
   outline: 3px solid var(--color-primary);
   outline-offset: 3px;
 }
@@ -2220,12 +2220,11 @@ body {
   }
 }
 
-.shell-account-controls .shell-delete-account {
-  margin-inline-start: 1rem;
+.account-management .shell-delete-account {
   border-color: #ba1a1a;
   color: #ba1a1a;
 }
-.shell-account-controls .shell-delete-account:hover:not(:disabled) {
+.account-management .shell-delete-account:hover:not(:disabled) {
   background: #fff0ef;
 }
 
@@ -2259,4 +2258,19 @@ body {
 }
 .auth-feedback-hint {
   font-size: 0.8125rem;
+}
+
+.account-management {
+  width: 100%;
+  max-width: var(--page-width);
+  margin: var(--space-xl) auto;
+  padding: var(--space-lg) var(--page-gutter);
+  border-top: 1px solid var(--color-border);
+}
+.account-management h2 {
+  font: 600 1rem var(--font-heading);
+}
+.account-management p {
+  margin: var(--space-sm) 0 var(--space-md);
+  color: var(--color-text-muted);
 }

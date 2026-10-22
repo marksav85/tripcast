@@ -46,3 +46,17 @@ it('supports confirmation callbacks and rejects expired links before SDK calls',
   expect(client.auth.setSession).not.toHaveBeenCalled();
   expect(window.location.hash).toBe('');
 });
+
+it('does not carry an invalid callback into a fresh homepage document or request sign-out', async () => {
+  const invalid = await callback('#error=access_denied&error_code=otp_expired');
+  expect(invalid.initialCallbackKind).toBe('invalid');
+  const client = { auth: { setSession: vi.fn(), signOut: vi.fn() } };
+  expect(await invalid.handleAuthCallback(client)).toEqual({ kind: 'invalid', ok: false });
+  window.history.replaceState(null, '', '/');
+  vi.resetModules();
+  const home = await import('../src/client/auth/callback.js');
+  expect(home.initialCallbackKind).toBeNull();
+  expect(await home.handleAuthCallback(client)).toBeNull();
+  expect(client.auth.signOut).not.toHaveBeenCalled();
+  expect(client.auth.setSession).not.toHaveBeenCalled();
+});

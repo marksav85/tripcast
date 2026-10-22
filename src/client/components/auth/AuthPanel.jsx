@@ -339,12 +339,6 @@ export default function AuthPanel({
           >
             {signingOut ? 'Signing out…' : 'Sign out'}
           </button>
-          <DeleteAccountDialog
-            clearState={clearDeletedAccount}
-            client={client}
-            disabled={signingOut}
-            onBusyChange={setDeletingAccount}
-          />
         </div>
       ) : loading ? (
         <output>Restoring session…</output>
@@ -423,6 +417,13 @@ export default function AuthPanel({
                 <output className="auth-recovery-message" aria-live="polite">
                   {callbackError ?? 'This link is invalid or expired. Request a new email.'}
                 </output>
+                <p className="auth-description">
+                  If you have already verified your account, you can return home and sign in
+                  normally.
+                </p>
+                <a className="auth-button" href="/">
+                  Back to home
+                </a>
                 <button
                   className="auth-button auth-button-primary"
                   onClick={() => {
@@ -490,6 +491,18 @@ export default function AuthPanel({
         </main>
       )}
       {children && <div hidden={showCard}>{children}</div>}
+      {client && user && !recoveryStatus && !showCard && (
+        <section className="account-management" aria-labelledby="account-management-title">
+          <h2 id="account-management-title">Account management</h2>
+          <p>Permanently delete your account and saved trip data.</p>
+          <DeleteAccountDialog
+            clearState={clearDeletedAccount}
+            client={client}
+            disabled={signingOut}
+            onBusyChange={setDeletingAccount}
+          />
+        </section>
+      )}
     </>
   );
 }

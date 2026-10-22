@@ -45,18 +45,32 @@ export default function Header({
       renderHeader={(accountControls) => (
         <header className="shell-header">
           <div className="shell-bar">
-            <button
-              type="button"
+            <a
+              href="/"
               className="shell-brand"
-              disabled={disabled}
-              onClick={(event) => navigate('public', event)}
-              aria-label="TripCast — Weather Search"
+              onClick={(event) => {
+                if (
+                  isAuthenticated &&
+                  window.location.pathname === '/' &&
+                  !window.location.search &&
+                  !window.location.hash &&
+                  event.button === 0 &&
+                  !event.metaKey &&
+                  !event.ctrlKey &&
+                  !event.shiftKey &&
+                  !event.altKey
+                ) {
+                  event.preventDefault();
+                  if (!disabled) navigate('public', event);
+                }
+              }}
+              aria-label="TripCast — Home"
             >
               <span className="shell-brand-icon" aria-hidden="true">
                 ✧
               </span>
               <span>TripCast</span>
-            </button>
+            </a>
             <nav aria-label="Weather and trip" className="shell-navigation">
               <button
                 ref={weatherButton}

@@ -29,7 +29,7 @@ it('provides one public header and keyboard access to the existing sign-in form 
     'page',
   );
   await user.tab();
-  expect(screen.getByRole('button', { name: /TripCast/ })).toHaveFocus();
+  expect(screen.getByRole('link', { name: /TripCast/ })).toHaveFocus();
   await user.tab();
   await user.tab();
   expect(screen.getByRole('button', { name: 'My Trip' })).toHaveFocus();
@@ -91,12 +91,54 @@ it('renders the card outside the shared header without duplicate header auth act
   expect(screen.queryByRole('form', { name: 'Sign in' })).not.toBeInTheDocument();
   expect(within(header).getByRole('button', { name: 'Weather Search', exact: true })).toHaveFocus();
 });
-it('places account deletion directly after sign out without an account settings page', async () => {
+it('opens account deletion from the bottom account-management section', async () => {
   setup({ user: { id: 'a', email: 'a@example.test' }, isAuthenticated: true });
-  const signOut = screen.getByRole('button', { name: 'Sign out' });
   const remove = screen.getByRole('button', { name: 'Delete account', exact: true });
-  expect(signOut.nextElementSibling).toBe(remove);
+  expect(
+    within(screen.getByRole('region', { name: 'Account management' })).getByRole('button', {
+      name: 'Delete account',
+    }),
+  ).toBe(remove);
   await userEvent.click(remove);
   expect(screen.getByRole('alertdialog')).toBeVisible();
   expect(screen.getByText(/account and saved trip will be permanently removed/)).toBeVisible();
+});
+
+it('links the brand and callback error recovery to the actual homepage without signing out', () => {
+  const { auth } = setup({
+    recoveryStatus: 'error',
+    callbackError: 'This link is invalid or expired.',
+  });
+  expect(screen.getByRole('link', { name: 'TripCast — Home' })).toHaveAttribute('href', '/');
+  expect(screen.getByRole('link', { name: 'Back to home' })).toHaveAttribute('href', '/');
+  expect(screen.getByText(/already verified your account/)).toBeVisible();
+  expect(auth.client.auth.signOut).not.toHaveBeenCalled();
+});
+it('places one account deletion control after page content and outside the header', () => {
+  setup(
+    { user: { id: 'a', email: 'a@example.test' }, isAuthenticated: true },
+    {
+      children: <main>Planning content</main>,
+    },
+  );
+  const section = screen.getByRole('region', { name: 'Account management' });
+  expect(within(section).getAllByRole('button', { name: 'Delete account' })).toHaveLength(1);
+  expect(
+    within(screen.getByRole('banner')).queryByRole('button', { name: 'Delete account' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('main').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+
+it('returns an authenticated account to public weather without clearing its session', async () => {
+  const onNavigate = vi.fn();
+  const { auth } = setup(
+    { user: { id: 'a', email: 'a@example.test' }, isAuthenticated: true },
+    { onNavigate },
+  );
+  await userEvent.click(screen.getByRole('link', { name: 'TripCast — Home' }));
+  expect(onNavigate).toHaveBeenCalledWith('public');
+  expect(auth.client.auth.signOut).not.toHaveBeenCalled();
+  expect(screen.getByText('Signed in as a@example.test')).toBeVisible();
 });

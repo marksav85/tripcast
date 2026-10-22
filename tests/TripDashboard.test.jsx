@@ -33,6 +33,7 @@ function setup(user = 'a', loading = false) {
       value={{
         isAuthenticated: Boolean(owner),
         loading: restoring,
+        client: { auth: {} },
         user: owner ? { id: owner } : null,
       }}
     >
@@ -140,6 +141,9 @@ it('confirms Back and navigation without saving, retaining edits if leaving is d
   window.confirm.mockReturnValueOnce(false);
   click('Weather Search');
   expect(screen.getByLabelText('Trip title')).toBeVisible();
+  window.confirm.mockReturnValueOnce(false);
+  fireEvent.click(screen.getByRole('link', { name: 'TripCast — Home' }));
+  expect(screen.getByLabelText('Trip title')).toHaveValue('Unsaved');
   click('Back to My Trip');
   click('Edit Trip');
   expect(screen.getByLabelText('Trip title')).toHaveValue('Summer');
@@ -483,3 +487,26 @@ it('isolates an in-flight deletion and its dialog after account switching', asyn
   expect(screen.getByRole('heading', { name: 'Account B' })).toBeVisible();
   expect(deleteMyTrip).toHaveBeenCalledTimes(1);
 });
+
+it.each([null, savedTrip()])(
+  'keeps account management after planning content with saved trip %j',
+  async (saved) => {
+    loadMyTrip.mockResolvedValueOnce(ok(saved));
+    setup();
+    click('My Trip');
+    await screen.findByText(
+      saved ? 'Saved trip loaded.' : 'No saved trip. Create your first trip.',
+    );
+    const section = screen.getByRole('region', { name: 'Account management' });
+    expect(within(section).getByRole('button', { name: 'Delete account' })).toBeEnabled();
+    expect(
+      within(
+        screen.getByRole('navigation', { name: 'Weather and trip' }).closest('header'),
+      ).queryByRole('button', { name: 'Delete account' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Delete account' })).toHaveLength(1);
+    expect(
+      screen.getByRole('main').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  },
+);
